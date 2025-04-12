@@ -1,16 +1,39 @@
-"use client";
-
-import type React from "react";
-import { useState, useRef, useEffect } from "react";
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-    FileTransferManager,
-    type TransferState,
-    type TransferProgress,
-    type TransferError,
-} from "../lib/file-transfer-manager";
-import { SignalingService } from "../lib/signaling-service";
-import type { SignalData } from "../lib/webrtc-service";
-import { Button } from "@/components/ui/button";
+    AlertCircle,
+    Archive,
+    CheckCircle2,
+    Clock,
+    Code,
+    Copy,
+    Download,
+    ExternalLink,
+    File,
+    FileIcon,
+    FileText,
+    Film,
+    ImageIcon,
+    Info,
+    Link,
+    Music,
+    Pause,
+    Play,
+    QrCode,
+    RefreshCw,
+    Server,
+    Share2,
+    Shield,
+    Upload,
+    X,
+} from 'lucide-react';
+import type React from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { useToast } from '@/hooks/use-toast';
+
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -18,58 +41,38 @@ import {
     CardFooter,
     CardHeader,
     CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip';
+
 import {
-    Share2,
-    Upload,
-    Download,
-    Copy,
-    X,
-    Play,
-    Pause,
-    CheckCircle2,
-    AlertCircle,
-    FileIcon,
-    Link,
-    QrCode,
-    RefreshCw,
-    Shield,
-    Clock,
-    Info,
-    ExternalLink,
-    Server,
-    FileText,
-    ImageIcon,
-    Film,
-    Music,
-    Archive,
-    Code,
-    File,
-} from "lucide-react";
-import QRCode from "./qr-code";
-import { cn } from "../lib/utils";
-import { useToast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
+    FileTransferManager,
+    type TransferError,
+    type TransferProgress,
+    type TransferState,
+} from '../lib/file-transfer-manager';
+import { SignalingService } from '../lib/signaling-service';
+import { cn } from '../lib/utils';
+import type { SignalData } from '../lib/webrtc-service';
+import QRCode from './qr-code';
+
+('use client');
 
 export default function FileTransfer() {
-    const [activeTab, setActiveTab] = useState<string>("send");
+    const [activeTab, setActiveTab] = useState<string>('send');
     const [file, setFile] = useState<File | null>(null);
     const [receivedFile, setReceivedFile] = useState<File | null>(null);
-    const [channelId, setChannelId] = useState<string>("");
-    const [joinChannelId, setJoinChannelId] = useState<string>("");
-    const [transferState, setTransferState] = useState<TransferState>("idle");
+    const [channelId, setChannelId] = useState<string>('');
+    const [joinChannelId, setJoinChannelId] = useState<string>('');
+    const [transferState, setTransferState] = useState<TransferState>('idle');
     const [progress, setProgress] = useState<TransferProgress | null>(null);
     const [error, setError] = useState<TransferError | null>(null);
     const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -133,7 +136,7 @@ export default function FileTransfer() {
     const handleStateChange = (state: TransferState) => {
         setTransferState(state);
 
-        if (state === "transferring") {
+        if (state === 'transferring') {
             // Start timer for elapsed time
             transferStartTimeRef.current = Date.now();
             if (timerRef.current) {
@@ -142,27 +145,27 @@ export default function FileTransfer() {
 
             timerRef.current = setInterval(() => {
                 const elapsed = Math.floor(
-                    (Date.now() - transferStartTimeRef.current) / 1000
+                    (Date.now() - transferStartTimeRef.current) / 1000,
                 );
                 setElapsedTime(elapsed);
             }, 1000);
-        } else if (state === "completed") {
+        } else if (state === 'completed') {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
             }
 
             toast({
-                title: "Transfer Complete",
+                title: 'Transfer Complete',
                 description: receivedFile
                     ? `Successfully received ${receivedFile.name}`
-                    : "File transfer completed successfully",
-                variant: "success",
+                    : 'File transfer completed successfully',
+                variant: 'success',
             });
-        } else if (state === "error") {
+        } else if (state === 'error') {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
             }
-        } else if (state === "idle") {
+        } else if (state === 'idle') {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
             }
@@ -186,9 +189,9 @@ export default function FileTransfer() {
     const handleError = (error: TransferError) => {
         setError(error);
         toast({
-            title: "Transfer Error",
+            title: 'Transfer Error',
             description: error.message,
-            variant: "destructive",
+            variant: 'destructive',
         });
     };
 
@@ -196,7 +199,7 @@ export default function FileTransfer() {
         setReceivedFile(file);
 
         // Create preview URL for image files
-        if (file.type.startsWith("image/")) {
+        if (file.type.startsWith('image/')) {
             const url = URL.createObjectURL(file);
             setFilePreviewUrl(url);
         }
@@ -205,7 +208,7 @@ export default function FileTransfer() {
     const handleOutgoingSignal = (signal: SignalData) => {
         if (signalingServiceRef.current) {
             signalingServiceRef.current.sendSignal(signal).catch((error) => {
-                console.error("Error sending signal:", error);
+                console.error('Error sending signal:', error);
             });
         }
     };
@@ -213,7 +216,7 @@ export default function FileTransfer() {
     const handleIncomingSignal = (signal: SignalData) => {
         if (transferManagerRef.current) {
             transferManagerRef.current.handleSignal(signal).catch((error) => {
-                console.error("Error handling signal:", error);
+                console.error('Error handling signal:', error);
             });
         }
     };
@@ -225,9 +228,9 @@ export default function FileTransfer() {
 
     const handlePeerConnected = (peerId: string) => {
         toast({
-            title: "Peer Connected",
-            description: "Connection established with peer",
-            variant: "success",
+            title: 'Peer Connected',
+            description: 'Connection established with peer',
+            variant: 'success',
         });
     };
 
@@ -238,7 +241,7 @@ export default function FileTransfer() {
             setFile(files[0]);
 
             // Create preview URL for image files
-            if (files[0].type.startsWith("image/")) {
+            if (files[0].type.startsWith('image/')) {
                 const url = URL.createObjectURL(files[0]);
                 setFilePreviewUrl(url);
             } else {
@@ -246,9 +249,9 @@ export default function FileTransfer() {
             }
 
             toast({
-                title: "File Selected",
+                title: 'File Selected',
                 description: `${files[0].name} (${formatFileSize(
-                    files[0].size
+                    files[0].size,
                 )})`,
             });
         }
@@ -263,7 +266,7 @@ export default function FileTransfer() {
             setFile(files[0]);
 
             // Create preview URL for image files
-            if (files[0].type.startsWith("image/")) {
+            if (files[0].type.startsWith('image/')) {
                 const url = URL.createObjectURL(files[0]);
                 setFilePreviewUrl(url);
             } else {
@@ -271,9 +274,9 @@ export default function FileTransfer() {
             }
 
             toast({
-                title: "File Selected",
+                title: 'File Selected',
                 description: `${files[0].name} (${formatFileSize(
-                    files[0].size
+                    files[0].size,
                 )})`,
             });
         }
@@ -307,11 +310,11 @@ export default function FileTransfer() {
             await transferManagerRef.current.initiateSend(file);
         } catch (error) {
             setIsGeneratingLink(false);
-            console.error("Error initiating send:", error);
+            console.error('Error initiating send:', error);
             toast({
-                title: "Connection Error",
-                description: "Failed to create sharing link. Please try again.",
-                variant: "destructive",
+                title: 'Connection Error',
+                description: 'Failed to create sharing link. Please try again.',
+                variant: 'destructive',
             });
         }
     };
@@ -334,12 +337,12 @@ export default function FileTransfer() {
             await transferManagerRef.current.initiateReceive();
         } catch (error) {
             setIsJoining(false);
-            console.error("Error joining channel:", error);
+            console.error('Error joining channel:', error);
             toast({
-                title: "Connection Error",
+                title: 'Connection Error',
                 description:
-                    "Failed to join channel. Please check the ID and try again.",
-                variant: "destructive",
+                    'Failed to join channel. Please check the ID and try again.',
+                variant: 'destructive',
             });
         }
     };
@@ -349,17 +352,17 @@ export default function FileTransfer() {
             return;
         }
 
-        if (transferState === "transferring") {
+        if (transferState === 'transferring') {
             transferManagerRef.current.pause();
             toast({
-                title: "Transfer Paused",
-                description: "You can resume the transfer at any time.",
+                title: 'Transfer Paused',
+                description: 'You can resume the transfer at any time.',
             });
-        } else if (transferState === "paused") {
+        } else if (transferState === 'paused') {
             transferManagerRef.current.resume();
             toast({
-                title: "Transfer Resumed",
-                description: "Continuing from where we left off.",
+                title: 'Transfer Resumed',
+                description: 'Continuing from where we left off.',
             });
         }
     };
@@ -372,8 +375,8 @@ export default function FileTransfer() {
         transferManagerRef.current.cancel();
         setFile(null);
         setReceivedFile(null);
-        setChannelId("");
-        setJoinChannelId("");
+        setChannelId('');
+        setJoinChannelId('');
         setProgress(null);
         setError(null);
         setIsGeneratingLink(false);
@@ -386,8 +389,8 @@ export default function FileTransfer() {
         }
 
         toast({
-            title: "Transfer Cancelled",
-            description: "The file transfer has been cancelled.",
+            title: 'Transfer Cancelled',
+            description: 'The file transfer has been cancelled.',
         });
     };
 
@@ -399,9 +402,9 @@ export default function FileTransfer() {
         const url = `${window.location.origin}?channel=${channelId}`;
         navigator.clipboard.writeText(url).then(() => {
             toast({
-                title: "Link Copied",
-                description: "Sharing link copied to clipboard.",
-                variant: "success",
+                title: 'Link Copied',
+                description: 'Sharing link copied to clipboard.',
+                variant: 'success',
             });
         });
     };
@@ -412,7 +415,7 @@ export default function FileTransfer() {
         }
 
         const url = URL.createObjectURL(receivedFile);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = receivedFile.name;
         document.body.appendChild(a);
@@ -421,54 +424,54 @@ export default function FileTransfer() {
         URL.revokeObjectURL(url);
 
         toast({
-            title: "Download Started",
+            title: 'Download Started',
             description: `Downloading ${receivedFile.name}`,
-            variant: "success",
+            variant: 'success',
         });
     };
 
     // Check for channel ID in URL
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const channelId = params.get("channel");
+        const channelId = params.get('channel');
 
         if (channelId) {
             setJoinChannelId(channelId);
-            setActiveTab("receive");
+            setActiveTab('receive');
 
             toast({
-                title: "Sharing Link Detected",
-                description: "Ready to receive a file from this link.",
+                title: 'Sharing Link Detected',
+                description: 'Ready to receive a file from this link.',
             });
         }
     }, []);
 
     // Format file size
     const formatFileSize = (bytes: number): string => {
-        if (bytes === 0) return "0 Bytes";
+        if (bytes === 0) return '0 Bytes';
 
         const k = 1024;
-        const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
 
         return (
             Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) +
-            " " +
+            ' ' +
             sizes[i]
         );
     };
 
     // Format transfer speed
     const formatSpeed = (bytesPerSecond: number): string => {
-        if (bytesPerSecond === 0) return "0 B/s";
+        if (bytesPerSecond === 0) return '0 B/s';
 
         const k = 1024;
-        const sizes = ["B/s", "KB/s", "MB/s", "GB/s"];
+        const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
         const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
 
         return (
             Number.parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2)) +
-            " " +
+            ' ' +
             sizes[i]
         );
     };
@@ -477,42 +480,42 @@ export default function FileTransfer() {
     const formatTime = (seconds: number): string => {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
-        return `${minutes.toString().padStart(2, "0")}:${remainingSeconds
+        return `${minutes.toString().padStart(2, '0')}:${remainingSeconds
             .toString()
-            .padStart(2, "0")}`;
+            .padStart(2, '0')}`;
     };
 
     // Get file type icon
     const getFileTypeIcon = (file: File | null) => {
         if (!file) return <FileIcon className="h-12 w-12" />;
 
-        const extension = file.name.split(".").pop()?.toLowerCase();
+        const extension = file.name.split('.').pop()?.toLowerCase();
 
-        if (file.type.startsWith("image/")) {
+        if (file.type.startsWith('image/')) {
             return <ImageIcon className="h-12 w-12 text-blue-500" />;
-        } else if (file.type.startsWith("video/")) {
+        } else if (file.type.startsWith('video/')) {
             return <Film className="h-12 w-12 text-red-500" />;
-        } else if (file.type.startsWith("audio/")) {
+        } else if (file.type.startsWith('audio/')) {
             return <Music className="h-12 w-12 text-purple-500" />;
-        } else if (file.type.startsWith("text/")) {
+        } else if (file.type.startsWith('text/')) {
             return <FileText className="h-12 w-12 text-yellow-500" />;
         } else if (
-            extension === "zip" ||
-            extension === "rar" ||
-            extension === "7z" ||
-            extension === "tar" ||
-            extension === "gz"
+            extension === 'zip' ||
+            extension === 'rar' ||
+            extension === '7z' ||
+            extension === 'tar' ||
+            extension === 'gz'
         ) {
             return <Archive className="h-12 w-12 text-orange-500" />;
         } else if (
-            extension === "js" ||
-            extension === "ts" ||
-            extension === "html" ||
-            extension === "css" ||
-            extension === "json" ||
-            extension === "py" ||
-            extension === "java" ||
-            extension === "php"
+            extension === 'js' ||
+            extension === 'ts' ||
+            extension === 'html' ||
+            extension === 'css' ||
+            extension === 'json' ||
+            extension === 'py' ||
+            extension === 'java' ||
+            extension === 'php'
         ) {
             return <Code className="h-12 w-12 text-green-500" />;
         }
@@ -539,11 +542,11 @@ export default function FileTransfer() {
             );
         }
 
-        if (transferState === "idle") {
+        if (transferState === 'idle') {
             return null;
         }
 
-        if (transferState === "completed" && receivedFile) {
+        if (transferState === 'completed' && receivedFile) {
             return (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
@@ -551,7 +554,7 @@ export default function FileTransfer() {
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.3 }}
                 >
-                    <Alert className="mt-4 bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                    <Alert className="mt-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
                         <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                         <AlertTitle>Transfer Complete</AlertTitle>
                         <AlertDescription>
@@ -561,10 +564,10 @@ export default function FileTransfer() {
                                         <img
                                             src={
                                                 filePreviewUrl ||
-                                                "/placeholder.svg"
+                                                '/placeholder.svg'
                                             }
                                             alt={receivedFile.name}
-                                            className="h-16 w-16 object-cover rounded-md border"
+                                            className="h-16 w-16 rounded-md border object-cover"
                                         />
                                     ) : (
                                         getFileTypeIcon(receivedFile)
@@ -604,17 +607,17 @@ export default function FileTransfer() {
                     <div>
                         <div className="flex items-center gap-2">
                             <p className="text-sm font-medium">
-                                {transferState === "connecting"
-                                    ? "Establishing Connection..."
-                                    : transferState === "preparing"
-                                    ? "Preparing Transfer..."
-                                    : transferState === "transferring"
-                                    ? "Transferring..."
-                                    : transferState === "paused"
-                                    ? "Transfer Paused"
-                                    : "Processing..."}
+                                {transferState === 'connecting'
+                                    ? 'Establishing Connection...'
+                                    : transferState === 'preparing'
+                                      ? 'Preparing Transfer...'
+                                      : transferState === 'transferring'
+                                        ? 'Transferring...'
+                                        : transferState === 'paused'
+                                          ? 'Transfer Paused'
+                                          : 'Processing...'}
                             </p>
-                            {transferState === "transferring" && (
+                            {transferState === 'transferring' && (
                                 <Badge
                                     variant="outline"
                                     className="animate-pulse bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400"
@@ -622,17 +625,17 @@ export default function FileTransfer() {
                                     Live
                                 </Badge>
                             )}
-                            {transferState === "paused" && (
+                            {transferState === 'paused' && (
                                 <Badge variant="outline">Paused</Badge>
                             )}
                         </div>
                         {progress && (
-                            <div className="flex flex-col text-xs text-muted-foreground mt-1">
+                            <div className="mt-1 flex flex-col text-xs text-muted-foreground">
                                 <div className="flex items-center gap-2">
                                     <span>
                                         {formatFileSize(
-                                            progress.bytesTransferred
-                                        )}{" "}
+                                            progress.bytesTransferred,
+                                        )}{' '}
                                         of {formatFileSize(progress.totalBytes)}
                                     </span>
                                     <span>•</span>
@@ -640,7 +643,7 @@ export default function FileTransfer() {
                                         {formatSpeed(progress.speed)}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-2 mt-0.5">
+                                <div className="mt-0.5 flex items-center gap-2">
                                     <Clock className="h-3 w-3" />
                                     <span>
                                         Elapsed: {formatTime(elapsedTime)}
@@ -651,7 +654,7 @@ export default function FileTransfer() {
                                             <span>
                                                 Remaining: ~
                                                 {formatTime(
-                                                    estimatedTimeRemaining
+                                                    estimatedTimeRemaining,
                                                 )}
                                             </span>
                                         </>
@@ -661,8 +664,8 @@ export default function FileTransfer() {
                         )}
                     </div>
                     <div className="flex space-x-2">
-                        {(transferState === "transferring" ||
-                            transferState === "paused") && (
+                        {(transferState === 'transferring' ||
+                            transferState === 'paused') && (
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -672,7 +675,7 @@ export default function FileTransfer() {
                                             onClick={handlePauseResume}
                                         >
                                             {transferState ===
-                                            "transferring" ? (
+                                            'transferring' ? (
                                                 <Pause className="h-4 w-4" />
                                             ) : (
                                                 <Play className="h-4 w-4" />
@@ -680,9 +683,9 @@ export default function FileTransfer() {
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        {transferState === "transferring"
-                                            ? "Pause Transfer"
-                                            : "Resume Transfer"}
+                                        {transferState === 'transferring'
+                                            ? 'Pause Transfer'
+                                            : 'Resume Transfer'}
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -710,7 +713,7 @@ export default function FileTransfer() {
                         <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{Math.round(progress.percentage)}%</span>
                             <span>
-                                {progress.chunksTransferred} of{" "}
+                                {progress.chunksTransferred} of{' '}
                                 {progress.totalChunks} chunks
                             </span>
                         </div>
@@ -721,9 +724,9 @@ export default function FileTransfer() {
     };
 
     return (
-        <Card className="bg-white w-full max-w-md mx-auto mt-8 shadow-lg border-opacity-50 backdrop-blur-sm bg-background/80">
+        <Card className="border-opacity-50 mx-auto mt-8 w-full max-w-md bg-background/80 bg-white shadow-lg backdrop-blur-sm">
             <CardHeader className="pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <CardTitle className="text-xl">
                             Transfer Files
@@ -766,7 +769,7 @@ export default function FileTransfer() {
                     onValueChange={setActiveTab}
                     className="w-full"
                 >
-                    <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsList className="mb-6 grid w-full grid-cols-2">
                         <TabsTrigger
                             value="send"
                             className="flex items-center gap-1.5"
@@ -783,7 +786,7 @@ export default function FileTransfer() {
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="send" className="space-y-4 mt-0">
+                    <TabsContent value="send" className="mt-0 space-y-4">
                         <AnimatePresence mode="wait">
                             {!file ? (
                                 <motion.div
@@ -793,10 +796,10 @@ export default function FileTransfer() {
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     transition={{ duration: 0.2 }}
                                     className={cn(
-                                        "border-2 border-dashed rounded-lg p-6 sm:p-12 text-center cursor-pointer transition-all",
+                                        'cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all sm:p-12',
                                         isDragging
-                                            ? "border-primary/70 bg-primary/5"
-                                            : "hover:bg-muted/50 hover:border-muted-foreground/30 hover:shadow-md"
+                                            ? 'border-primary/70 bg-primary/5'
+                                            : 'hover:border-muted-foreground/30 hover:bg-muted/50 hover:shadow-md',
                                     )}
                                     onClick={() =>
                                         fileInputRef.current?.click()
@@ -812,10 +815,10 @@ export default function FileTransfer() {
                                         onChange={handleFileChange}
                                     />
                                     <div className="relative">
-                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full blur-xl opacity-70"></div>
-                                        <Upload className="h-12 w-12 mx-auto text-primary mb-4 relative" />
+                                        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 opacity-70 blur-xl"></div>
+                                        <Upload className="relative mx-auto mb-4 h-12 w-12 text-primary" />
                                     </div>
-                                    <p className="text-base font-medium mb-2">
+                                    <p className="mb-2 text-base font-medium">
                                         Drag and drop a file here, or click to
                                         select
                                     </p>
@@ -823,7 +826,7 @@ export default function FileTransfer() {
                                         Files are transferred directly to the
                                         recipient
                                     </p>
-                                    <div className="flex items-center justify-center gap-2 mt-6">
+                                    <div className="mt-6 flex items-center justify-center gap-2">
                                         <Shield className="h-4 w-4 text-muted-foreground" />
                                         <p className="text-xs text-muted-foreground">
                                             End-to-end encrypted
@@ -839,36 +842,36 @@ export default function FileTransfer() {
                                     transition={{ duration: 0.2 }}
                                     className="space-y-4"
                                 >
-                                    <div className="p-4 border rounded-lg bg-muted/10 backdrop-blur-sm hover:shadow-md transition-all">
+                                    <div className="rounded-lg border bg-muted/10 p-4 backdrop-blur-sm transition-all hover:shadow-md">
                                         <div className="flex items-center gap-4">
                                             <div className="flex-shrink-0">
                                                 {filePreviewUrl ? (
                                                     <img
                                                         src={
                                                             filePreviewUrl ||
-                                                            "/placeholder.svg"
+                                                            '/placeholder.svg'
                                                         }
                                                         alt={file.name}
-                                                        className="h-12 w-12 object-cover rounded-md border"
+                                                        className="h-12 w-12 rounded-md border object-cover"
                                                     />
                                                 ) : (
                                                     getFileTypeIcon(file)
                                                 )}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate font-medium">
                                                     {file.name}
                                                 </p>
                                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                     <span>
                                                         {formatFileSize(
-                                                            file.size
+                                                            file.size,
                                                         )}
                                                     </span>
                                                     <span>•</span>
                                                     <span>
                                                         {file.type ||
-                                                            "Unknown type"}
+                                                            'Unknown type'}
                                                     </span>
                                                 </div>
                                             </div>
@@ -879,7 +882,7 @@ export default function FileTransfer() {
                                                     setFile(null);
                                                     if (filePreviewUrl) {
                                                         URL.revokeObjectURL(
-                                                            filePreviewUrl
+                                                            filePreviewUrl,
                                                         );
                                                         setFilePreviewUrl(null);
                                                     }
@@ -891,18 +894,18 @@ export default function FileTransfer() {
                                         </div>
                                     </div>
 
-                                    {transferState === "idle" ? (
+                                    {transferState === 'idle' ? (
                                         <motion.div
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             transition={{ delay: 0.1 }}
                                         >
                                             <Button
-                                                className="w-full group relative overflow-hidden"
+                                                className="group relative w-full overflow-hidden"
                                                 onClick={handleSendFile}
                                                 disabled={isGeneratingLink}
                                             >
-                                                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0 group-hover:animate-shimmer"></span>
+                                                <span className="group-hover:animate-shimmer absolute inset-0 h-full w-full bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0"></span>
                                                 {isGeneratingLink ? (
                                                     <>
                                                         <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -941,7 +944,7 @@ export default function FileTransfer() {
                                                                     size="sm"
                                                                     className="h-6 px-2"
                                                                 >
-                                                                    <Info className="h-3 w-3 mr-1" />
+                                                                    <Info className="mr-1 h-3 w-3" />
                                                                     <span className="text-xs">
                                                                         How to
                                                                         share
@@ -973,7 +976,7 @@ export default function FileTransfer() {
                                                             readOnly
                                                             className="pr-10"
                                                         />
-                                                        <Link className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                        <Link className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                                                     </div>
                                                     <TooltipProvider>
                                                         <Tooltip>
@@ -986,7 +989,7 @@ export default function FileTransfer() {
                                                                     onClick={
                                                                         handleCopyLink
                                                                     }
-                                                                    className="hover:bg-primary/10 transition-colors"
+                                                                    className="transition-colors hover:bg-primary/10"
                                                                 >
                                                                     <Copy className="h-4 w-4" />
                                                                 </Button>
@@ -1007,7 +1010,7 @@ export default function FileTransfer() {
                                                         QR Code
                                                     </span>
                                                 </div>
-                                                <div className="p-3 bg-white rounded-xl shadow-sm">
+                                                <div className="rounded-xl bg-white p-3 shadow-sm">
                                                     <QRCode
                                                         value={`${window.location.origin}?channel=${channelId}`}
                                                         size={180}
@@ -1032,9 +1035,9 @@ export default function FileTransfer() {
                         {renderTransferStatus()}
                     </TabsContent>
 
-                    <TabsContent value="receive" className="space-y-4 mt-0">
+                    <TabsContent value="receive" className="mt-0 space-y-4">
                         <AnimatePresence mode="wait">
-                            {transferState === "idle" ? (
+                            {transferState === 'idle' ? (
                                 <motion.div
                                     key="receiveIdle"
                                     initial={{ opacity: 0, scale: 0.95 }}
@@ -1050,29 +1053,29 @@ export default function FileTransfer() {
                                         >
                                             Enter Sharing Link or Channel ID
                                         </Label>
-                                        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                        <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
                                             <div className="relative flex-1">
                                                 <Input
                                                     id="channel-id"
                                                     value={joinChannelId}
                                                     onChange={(e) =>
                                                         setJoinChannelId(
-                                                            e.target.value
+                                                            e.target.value,
                                                         )
                                                     }
                                                     placeholder="https://safeshare.com?channel=abc123 or abc123"
                                                     className="pr-10"
                                                 />
-                                                <Link className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                <Link className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                                             </div>
                                             <Button
                                                 onClick={handleJoinChannel}
                                                 disabled={
                                                     !joinChannelId || isJoining
                                                 }
-                                                className="relative overflow-hidden group"
+                                                className="group relative overflow-hidden"
                                             >
-                                                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0 group-hover:animate-shimmer"></span>
+                                                <span className="group-hover:animate-shimmer absolute inset-0 h-full w-full bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0"></span>
                                                 {isJoining ? (
                                                     <>
                                                         <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -1086,21 +1089,21 @@ export default function FileTransfer() {
                                                 )}
                                             </Button>
                                         </div>
-                                        <p className="text-xs text-muted-foreground mt-1">
+                                        <p className="mt-1 text-xs text-muted-foreground">
                                             Paste the sharing link or channel ID
                                             provided by the sender
                                         </p>
                                     </div>
 
-                                    <div className="flex flex-col items-center justify-center p-6 border border-dashed rounded-lg bg-muted/5 hover:bg-muted/10 transition-colors">
+                                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/5 p-6 transition-colors hover:bg-muted/10">
                                         <div className="relative mb-4">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full blur-xl opacity-70"></div>
-                                            <QrCode className="h-12 w-12 text-primary relative" />
+                                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 opacity-70 blur-xl"></div>
+                                            <QrCode className="relative h-12 w-12 text-primary" />
                                         </div>
-                                        <p className="text-sm font-medium mb-1">
+                                        <p className="mb-1 text-sm font-medium">
                                             Scan QR Code
                                         </p>
-                                        <p className="text-xs text-muted-foreground text-center">
+                                        <p className="text-center text-xs text-muted-foreground">
                                             If the sender has generated a QR
                                             code, you can scan it with your
                                             device's camera
@@ -1110,7 +1113,7 @@ export default function FileTransfer() {
                                             size="sm"
                                             className="mt-2"
                                         >
-                                            <ExternalLink className="h-3 w-3 mr-1" />
+                                            <ExternalLink className="mr-1 h-3 w-3" />
                                             <span className="text-xs">
                                                 Open Camera
                                             </span>
@@ -1132,7 +1135,7 @@ export default function FileTransfer() {
                     </TabsContent>
                 </Tabs>
             </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row justify-between border-t px-6 py-4 text-xs text-muted-foreground gap-2">
+            <CardFooter className="flex flex-col justify-between gap-2 border-t px-6 py-4 text-xs text-muted-foreground sm:flex-row">
                 <div className="flex items-center gap-1">
                     <Shield className="h-3 w-3" />
                     <span>End-to-end encrypted</span>

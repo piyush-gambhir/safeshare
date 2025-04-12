@@ -1,31 +1,32 @@
-"use client";
+import { AnimatePresence, motion } from 'framer-motion';
+import { Github, Menu, Share2, Shield, X } from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
-import { useState } from "react";
-import Link from "next/link";
-import { ModeToggle } from "./mode-toggle";
-import { Button } from "./ui/button";
-import { Share2, Shield, Github, Menu, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { ModeToggle } from './mode-toggle';
+import { Button } from './ui/button';
+
+('use client');
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
-        <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 items-center justify-center mx-auto">
-            <div className="px-8 flex h-16 items-center justify-between">
+        <header className="sticky top-0 z-50 mx-auto w-full items-center justify-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="flex h-16 items-center justify-between px-8">
                 <div className="flex items-center">
                     <Link href="/" className="flex items-center space-x-2">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                             <Share2 className="h-5 w-5 text-primary" />
                         </div>
-                        <span className="font-bold text-lg inline-block">
+                        <span className="inline-block text-lg font-bold">
                             SafeShare
                         </span>
                     </Link>
                 </div>
 
                 {/* Desktop Navigation */}
-                <div className="hidden md:flex items-center space-x-4">
+                <div className="hidden items-center space-x-4 md:flex">
                     <nav className="flex items-center space-x-4">
                         <Link href="/about">
                             <Button variant="ghost" size="sm">
@@ -51,7 +52,7 @@ export default function Header() {
                                 <span>GitHub</span>
                             </Button>
                         </Link>
-                        <div className="border-l h-6 mx-2 pl-4">
+                        <div className="mx-2 h-6 border-l pl-4">
                             <div className="flex items-center gap-1.5">
                                 <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
                                 <span className="text-xs font-medium text-green-600 dark:text-green-400">
@@ -64,8 +65,8 @@ export default function Header() {
                 </div>
 
                 {/* Mobile Menu Button */}
-                <div className="flex md:hidden items-center gap-2">
-                    <div className="flex items-center gap-1.5 mr-2">
+                <div className="flex items-center gap-2 md:hidden">
+                    <div className="mr-2 flex items-center gap-1.5">
                         <Shield className="h-3 w-3 text-green-600 dark:text-green-400" />
                         <span className="text-xs font-medium text-green-600 dark:text-green-400">
                             Secure
@@ -91,12 +92,12 @@ export default function Header() {
                 {mobileMenuOpen && (
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
+                        animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="md:hidden border-t"
+                        className="border-t md:hidden"
                     >
-                        <div className="container py-4 flex flex-col space-y-3">
+                        <div className="container flex flex-col space-y-3 py-4">
                             <Link
                                 href="/about"
                                 onClick={() => setMobileMenuOpen(false)}
