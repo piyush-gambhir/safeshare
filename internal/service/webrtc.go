@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/piyush-gambhir/safeshare-service/internal/repository"
 	"github.com/piyush-gambhir/safeshare-service/internal/util"
 	"github.com/redis/go-redis/v9"
@@ -92,10 +93,15 @@ func (s *WebRTCService) JoinRoom(ctx context.Context, userID string, roomID stri
 		return fmt.Errorf("session is not in a joinable state")
 	}
 
-	// Update the session with the receiver ID using google/uuid.UUID directly.
+	// Convert to pgtype.UUID because UpdateWebRTCSessionReceiver requires it
+	var pgUserUUID pgtype.UUID
+	pgUserUUID.Bytes = userUUID
+	pgUserUUID.Valid = true
+
+	// Update the session with the receiver ID using pgtype.UUID
 	_, err = s.queries.UpdateWebRTCSessionReceiver(ctx, repository.UpdateWebRTCSessionReceiverParams{
 		RoomID:     roomID,
-		ReceiverID: userUUID,
+		ReceiverID: pgUserUUID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update WebRTC session: %w", err)
