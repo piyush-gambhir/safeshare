@@ -745,7 +745,7 @@ export default function FileTransfer() {
     };
 
     return (
-        <Card className="border-opacity-50 mx-auto mt-8 w-full max-w-md bg-background/80 bg-white shadow-lg backdrop-blur-sm">
+        <Card className="border-opacity-50 mx-auto mt-8 w-full max-w-md bg-background/80 shadow-lg backdrop-blur-sm">
             <CardHeader className="pb-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
