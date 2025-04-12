@@ -131,6 +131,11 @@ func (c *Consumer) consumeTransferExpired(ctx context.Context) error {
 
 // cleanupExpiredData cleans up expired transfers and sessions
 func (c *Consumer) cleanupExpiredData(ctx context.Context) error {
+	// Delete expired WebRTC sessions
+	if err := c.queries.DeleteExpiredWebRTCSessions(ctx); err != nil {
+		return fmt.Errorf("failed to delete expired WebRTC sessions: %w", err)
+	}
+
 	// Delete expired sessions
 	if err := c.queries.DeleteExpiredSessions(ctx); err != nil {
 		return fmt.Errorf("failed to delete expired sessions: %w", err)
@@ -139,6 +144,30 @@ func (c *Consumer) cleanupExpiredData(ctx context.Context) error {
 	// Delete expired transfers
 	if err := c.queries.DeleteExpiredTransfers(ctx); err != nil {
 		return fmt.Errorf("failed to delete expired transfers: %w", err)
+	}
+
+	// Clean up WebRTC signals in Redis
+	pattern := "webrtc:*"
+	keys, err := c.redisClient.Keys(ctx, pattern).Result()
+	if err != nil {
+		return fmt.Errorf("failed to get WebRTC signal keys: %w", err)
+	}
+
+	// Find and delete expired keys
+	for _, key := range keys {
+		ttl, err := c.redisClient.TTL(ctx, key).Result()
+		if err != nil {
+			log.Printf("Error getting TTL for key %s: %v", key, err)
+			continue
+		}
+
+		// Delete keys with negative TTL (expired) or very short TTL (< 1 hour)
+		if ttl < time.Hour {
+			_, err := c.redisClient.Del(ctx, key).Result()
+			if err != nil {
+				log.Printf("Error deleting expired WebRTC signal %s: %v", key, err)
+			}
+		}
 	}
 
 	return nil

@@ -93,10 +93,14 @@ func main() {
 	storageManager := storage.NewTemporaryStorageManager(redisClient, queries)
 	fileService := service.NewFileTransferService(queries, storageManager, producer)
 
+	// Set up WebRTC service
+	webrtcService := service.NewWebRTCService(queries, redisClient)
+
 	// Set up handlers
 	authHandler := handler.NewAuthHandler(authService)
 	fileHandler := handler.NewFileHandler(fileService, *authService)
 	healthHandler := handler.NewHealthHandler()
+	webrtcHandler := handler.NewWebRTCHandler(webrtcService, authService)
 
 	// Set up rate limiter
 	limiter := middleware.NewIPRateLimiter(rate.Limit(10), 30) // 10 requests per second with burst of 30
@@ -109,9 +113,14 @@ func main() {
 	authHandler.Register(apiGroup)
 	fileHandler.Register(apiGroup)
 	healthHandler.Register(apiGroup)
+	webrtcHandler.Register(apiGroup)
 
 	// Set up Swagger
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Serve static files for WebRTC client
+	router.Static("/js", "./public/js")
+	router.StaticFile("/webrtc-test.html", "./public/webrtc-test.html")
 
 	// Start server
 	srv := &http.Server{

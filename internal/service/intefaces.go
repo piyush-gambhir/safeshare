@@ -47,3 +47,21 @@ type FileTransferServiceInterface interface {
 	// GetUserTransfers gets transfers for a user
 	GetUserTransfers(ctx context.Context, userID string) ([]repository.Transfer, error)
 }
+
+// WebRTCServiceInterface defines the interface for the WebRTC service
+type WebRTCServiceInterface interface {
+	// CreateRoom creates a new WebRTC room for signaling
+	CreateRoom(ctx context.Context, userID string, transferID string) (string, error)
+
+	// JoinRoom joins a WebRTC room
+	JoinRoom(ctx context.Context, userID string, roomID string) error
+
+	// StoreSignalData stores WebRTC signaling data
+	StoreSignalData(ctx context.Context, roomID string, signalType string, data string) error
+
+	// GetSignalData gets WebRTC signaling data
+	GetSignalData(ctx context.Context, roomID string, signalType string) ([]string, error)
+
+	// UpdateRoomStatus updates the status of a WebRTC room
+	UpdateRoomStatus(ctx context.Context, roomID string, status string) error
+}

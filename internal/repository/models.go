@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Session struct {
@@ -43,4 +44,17 @@ type User struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	LastSeenAt  time.Time `json:"last_seen_at"`
+}
+
+type WebrtcSession struct {
+	ID          uuid.UUID   `json:"id"`
+	TransferID  uuid.UUID   `json:"transfer_id"`
+	InitiatorID uuid.UUID   `json:"initiator_id"`
+	ReceiverID  pgtype.UUID `json:"receiver_id"`
+	RoomID      string      `json:"room_id"`
+	SdpOffer    pgtype.Text `json:"sdp_offer"`
+	Status      string      `json:"status"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	ExpiresAt   time.Time   `json:"expires_at"`
 }
