@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
     return (
-        <div className="container max-w-3xl px-4 py-12 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
             <div className="relative mb-12">
                 <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/10 to-secondary/10 opacity-30 blur-3xl"></div>
                 <h1 className="relative mb-6 text-3xl font-bold">

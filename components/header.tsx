@@ -15,7 +15,10 @@ export default function Header() {
         <header className="sticky top-0 z-50 mx-auto w-full items-center justify-center border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="flex h-16 items-center justify-between px-8">
                 <div className="flex items-center">
-                    <Link href="/" className="flex items-center space-x-2">
+                    <Link
+                        href="/"
+                        className="flex cursor-pointer items-center space-x-2"
+                    >
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
                             <Share2 className="h-5 w-5 text-primary" />
                         </div>
@@ -28,7 +31,11 @@ export default function Header() {
                 {/* Desktop Navigation */}
                 <div className="hidden items-center space-x-4 md:flex">
                     <nav className="flex items-center space-x-4">
-                        <Link href="/about">
+                        <Link
+                            href="/about"
+                            prefetch={true}
+                            className="cursor-pointer"
+                        >
                             <Button variant="ghost" size="sm">
                                 About
                             </Button>
@@ -42,6 +49,8 @@ export default function Header() {
                             href="https://github.com"
                             target="_blank"
                             rel="noopener noreferrer"
+                            prefetch={true}
+                            className="cursor-pointer"
                         >
                             <Button
                                 variant="ghost"
@@ -52,8 +61,8 @@ export default function Header() {
                                 <span>GitHub</span>
                             </Button>
                         </Link>
-                        <div className="mx-2 h-6 border-l pl-4">
-                            <div className="flex items-center gap-1.5">
+                        <div className="mx-2 my-auto items-center justify-center border-l pl-4">
+                            <div className="flex items-center justify-center gap-1.5">
                                 <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
                                 <span className="text-xs font-medium text-green-600 dark:text-green-400">
                                     Secure Connection
