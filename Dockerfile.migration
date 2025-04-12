@@ -1,0 +1,11 @@
+FROM golang:1.24-alpine
+# Install necessary build tools
+RUN apk add --no-cache git
+# Install goose
+RUN go install github.com/pressly/goose/v3/cmd/goose@latest
+# Set working directory
+WORKDIR /app
+# Copy migrations
+COPY migrations ./migrations
+# Run migrations
+CMD ["sh", "-c", "goose -dir=./migrations postgres \"host=postgres user=postgres password=postgres dbname=safeshare sslmode=disable\" up"]

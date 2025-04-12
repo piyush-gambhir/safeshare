@@ -1,0 +1,319 @@
+basePath: /api
+definitions:
+  types.DeviceIDResponse:
+    properties:
+      device_id:
+        type: string
+    type: object
+  types.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  types.HealthResponse:
+    properties:
+      status:
+        type: string
+    type: object
+  types.InitiateUploadRequest:
+    properties:
+      content_type:
+        type: string
+      file_name:
+        type: string
+      file_size:
+        type: integer
+    type: object
+  types.InitiateUploadResponse:
+    properties:
+      access_token:
+        type: string
+      chunk_count:
+        type: integer
+      encryption_key:
+        type: string
+      expires_at:
+        type: string
+      session_id:
+        type: string
+      transfer_id:
+        type: string
+    type: object
+  types.LoginRequest:
+    properties:
+      device_id:
+        type: string
+    type: object
+  types.LoginResponse:
+    properties:
+      token:
+        type: string
+      user_id:
+        type: string
+    type: object
+  types.TransferResponse:
+    properties:
+      content_type:
+        type: string
+      created_at:
+        type: string
+      downloaded:
+        type: boolean
+      expires_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      size:
+        type: integer
+    type: object
+  types.UploadChunkRequest:
+    properties:
+      data:
+        description: Base64 encoded chunk data
+        type: string
+    type: object
+  types.UploadChunkResponse:
+    properties:
+      success:
+        type: boolean
+    type: object
+info:
+  contact: {}
+  description: End-to-End Encrypted File Sharing Service
+  title: SafeShare API
+  version: "1.0"
+paths:
+  /auth/device:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new unique device ID for anonymous authentication
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.DeviceIDResponse'
+      summary: Create a new device ID
+      tags:
+      - auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Logs in a user with a device ID, creating a new user if necessary
+      parameters:
+      - description: Login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Login with device ID
+      tags:
+      - auth
+  /health:
+    get:
+      description: Checks the health of the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+  /transfers:
+    get:
+      description: Gets transfers for the logged in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/types.TransferResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user transfers
+      tags:
+      - transfers
+    post:
+      consumes:
+      - application/json
+      description: Initiates a new file upload and returns upload details
+      parameters:
+      - description: Upload request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.InitiateUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.InitiateUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Initiate a file upload
+      tags:
+      - transfers
+  /transfers/{accessToken}:
+    get:
+      description: Gets transfer details by access token
+      parameters:
+      - description: Access token
+        in: path
+        name: accessToken
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.TransferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Get transfer details
+      tags:
+      - transfers
+  /transfers/{accessToken}/download:
+    get:
+      description: Downloads a file by access token
+      parameters:
+      - description: Access token
+        in: path
+        name: accessToken
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      summary: Download a file
+      tags:
+      - transfers
+  /transfers/{sessionID}/chunks/{chunkIndex}:
+    post:
+      consumes:
+      - application/json
+      description: Uploads a chunk of a file
+      parameters:
+      - description: Session ID
+        in: path
+        name: sessionID
+        required: true
+        type: string
+      - description: Chunk index
+        in: path
+        name: chunkIndex
+        required: true
+        type: integer
+      - description: Chunk data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/types.UploadChunkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.UploadChunkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/types.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Upload a file chunk
+      tags:
+      - transfers
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
