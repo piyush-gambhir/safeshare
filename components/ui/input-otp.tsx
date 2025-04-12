@@ -4,8 +4,6 @@ import * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const InputOTP = React.forwardRef<
     React.ElementRef<typeof OTPInput>,
     React.ComponentPropsWithoutRef<typeof OTPInput>

@@ -1,11 +1,11 @@
+'use client';
+
 import { motion } from 'framer-motion';
 import { Server, Shield, Zap } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-
-('use client');
 
 export default function Hero() {
     const [ref, inView] = useInView({

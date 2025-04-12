@@ -1,28 +1,21 @@
-export type PeerConnectionState =
-    | 'new'
-    | 'connecting'
-    | 'connected'
-    | 'disconnected'
-    | 'failed'
-    | 'closed';
+import type { SignalData } from './signaling-service';
 
-export type DataChannelState = 'connecting' | 'open' | 'closing' | 'closed';
+// Corrected import
 
-export interface SignalData {
-    type: 'offer' | 'answer' | 'ice-candidate';
-    payload: any;
-}
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // milliseconds
 
-export class WebRTCService {
+class WebRTCService {
     private peerConnection: RTCPeerConnection | null = null;
     private dataChannel: RTCDataChannel | null = null;
     private onConnectionStateChangeCallback:
-        | ((state: PeerConnectionState) => void)
+        | ((state: RTCPeerConnectionState) => void)
         | null = null;
     private onDataChannelStateChangeCallback:
-        | ((state: DataChannelState) => void)
+        | ((state: RTCDataChannelState) => void)
         | null = null;
-    private onDataReceivedCallback: ((data: ArrayBuffer) => void) | null = null;
+    private onDataReceivedCallback: ((data: ArrayBufferLike) => void) | null =
+        null;
     private onSignalCallback: ((signal: SignalData) => void) | null = null;
 
     constructor() {
@@ -51,7 +44,7 @@ export class WebRTCService {
         this.peerConnection.onconnectionstatechange = () => {
             if (this.peerConnection && this.onConnectionStateChangeCallback) {
                 this.onConnectionStateChangeCallback(
-                    this.peerConnection.connectionState as PeerConnectionState,
+                    this.peerConnection.connectionState,
                 );
             }
         };
@@ -109,16 +102,23 @@ export class WebRTCService {
             }
         } catch (error) {
             console.error('Error creating offer:', error);
+            throw error;
         }
     }
 
-    public async handleSignal(signal: SignalData): Promise<void> {
-        if (!this.peerConnection) return;
+    // Method to handle incoming signals
+    async handleSignal(signal: SignalData): Promise<void> {
+        if (!this.peerConnection) {
+            console.warn('Peer connection not initialized. Ignoring signal.');
+            return;
+        }
 
         try {
             if (signal.type === 'offer') {
                 await this.peerConnection.setRemoteDescription(
-                    new RTCSessionDescription(signal.payload),
+                    new RTCSessionDescription(
+                        signal.payload as RTCSessionDescriptionInit,
+                    ),
                 );
                 const answer = await this.peerConnection.createAnswer();
                 await this.peerConnection.setLocalDescription(answer);
@@ -131,25 +131,32 @@ export class WebRTCService {
                 }
             } else if (signal.type === 'answer') {
                 await this.peerConnection.setRemoteDescription(
-                    new RTCSessionDescription(signal.payload),
+                    new RTCSessionDescription(
+                        signal.payload as RTCSessionDescriptionInit,
+                    ),
                 );
             } else if (signal.type === 'ice-candidate') {
                 await this.peerConnection.addIceCandidate(
-                    new RTCIceCandidate(signal.payload),
+                    new RTCIceCandidate(signal.payload as RTCIceCandidateInit),
                 );
+            } else {
+                console.warn('Received unknown signal type:', signal);
             }
         } catch (error) {
             console.error('Error handling signal:', error);
+            throw error;
         }
     }
 
-    public sendData(data: ArrayBuffer): boolean {
+    public sendData(data: ArrayBufferLike): boolean {
         if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
             return false;
         }
 
         try {
-            this.dataChannel.send(data);
+            // Convert to Uint8Array for sending
+            const dataArray = new Uint8Array(data);
+            this.dataChannel.send(dataArray);
             return true;
         } catch (error) {
             console.error('Error sending data:', error);
@@ -158,18 +165,18 @@ export class WebRTCService {
     }
 
     public onConnectionStateChange(
-        callback: (state: PeerConnectionState) => void,
+        callback: (state: RTCPeerConnectionState) => void,
     ): void {
         this.onConnectionStateChangeCallback = callback;
     }
 
     public onDataChannelStateChange(
-        callback: (state: DataChannelState) => void,
+        callback: (state: RTCDataChannelState) => void,
     ): void {
         this.onDataChannelStateChangeCallback = callback;
     }
 
-    public onDataReceived(callback: (data: ArrayBuffer) => void): void {
+    public onDataReceived(callback: (data: ArrayBufferLike) => void): void {
         this.onDataReceivedCallback = callback;
     }
 
@@ -190,15 +197,15 @@ export class WebRTCService {
         this.peerConnection = null;
     }
 
-    public getConnectionState(): PeerConnectionState {
+    public getConnectionState(): RTCPeerConnectionState {
         return this.peerConnection
-            ? (this.peerConnection.connectionState as PeerConnectionState)
+            ? this.peerConnection.connectionState
             : 'closed';
     }
 
-    public getDataChannelState(): DataChannelState {
-        return this.dataChannel
-            ? (this.dataChannel.readyState as DataChannelState)
-            : 'closed';
+    public getDataChannelState(): RTCDataChannelState {
+        return this.dataChannel ? this.dataChannel.readyState : 'closed';
     }
 }
+
+export default WebRTCService;

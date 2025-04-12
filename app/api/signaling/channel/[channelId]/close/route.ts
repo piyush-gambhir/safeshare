@@ -1,32 +1,16 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// In-memory storage for channels (shared with other routes)
-const channels = new Map<
-    string,
-    {
-        id: string;
-        peerId: string | null;
-        signals: any[];
-        created: number;
-        expires: number;
-    }
->();
+import { closeChannel } from '@/lib/channel-store';
+
+// Updated import
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { channelId: string } },
+    { params }: { params: { channelId: string } }, // Specify type for params
 ) {
-    try {
-        const { channelId } = params;
+    const { channelId } = params;
 
-        channels.delete(channelId);
+    closeChannel(channelId); // Use imported function
 
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Error closing channel:', error);
-        return NextResponse.json(
-            { error: 'Failed to close channel' },
-            { status: 500 },
-        );
-    }
+    return NextResponse.json({ success: true });
 }

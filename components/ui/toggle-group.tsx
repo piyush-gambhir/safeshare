@@ -7,8 +7,6 @@ import { toggleVariants } from '@/components/ui/toggle';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const ToggleGroupContext = React.createContext<
     VariantProps<typeof toggleVariants>
 >({

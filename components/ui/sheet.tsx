@@ -6,8 +6,6 @@ import * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const Sheet = SheetPrimitive.Root;
 
 const SheetTrigger = SheetPrimitive.Trigger;

@@ -15,8 +15,6 @@ import { Label } from '@/components/ui/label';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const Form = FormProvider;
 
 type FormFieldContextValue<

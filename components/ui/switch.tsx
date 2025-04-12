@@ -4,8 +4,6 @@ import * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const Switch = React.forwardRef<
     React.ElementRef<typeof SwitchPrimitives.Root>,
     React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>

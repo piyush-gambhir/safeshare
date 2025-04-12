@@ -43,10 +43,13 @@ export class EncryptionService {
         );
     }
 
-    public async encrypt(data: ArrayBuffer): Promise<ArrayBuffer> {
+    public async encrypt(data: ArrayBufferLike): Promise<ArrayBuffer> {
         if (!this.key) {
             throw new Error('No encryption key available');
         }
+
+        // Convert to Uint8Array for crypto operations
+        const dataArray = new Uint8Array(data);
 
         // Generate a random IV for each encryption
         const iv = window.crypto.getRandomValues(
@@ -59,7 +62,7 @@ export class EncryptionService {
                 iv,
             },
             this.key,
-            data,
+            dataArray,
         );
 
         // Prepend the IV to the encrypted data
@@ -70,14 +73,17 @@ export class EncryptionService {
         return result.buffer;
     }
 
-    public async decrypt(data: ArrayBuffer): Promise<ArrayBuffer> {
+    public async decrypt(data: ArrayBufferLike): Promise<ArrayBuffer> {
         if (!this.key) {
             throw new Error('No encryption key available');
         }
 
+        // Convert to Uint8Array for crypto operations
+        const dataArray = new Uint8Array(data);
+
         // Extract the IV from the beginning of the data
-        const iv = new Uint8Array(data, 0, EncryptionService.IV_LENGTH);
-        const encryptedData = new Uint8Array(data, EncryptionService.IV_LENGTH);
+        const iv = dataArray.slice(0, EncryptionService.IV_LENGTH);
+        const encryptedData = dataArray.slice(EncryptionService.IV_LENGTH);
 
         return await window.crypto.subtle.decrypt(
             {

@@ -1,35 +1,36 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// In-memory storage for channels (shared with other routes)
-const channels = new Map<
-    string,
-    {
-        id: string;
-        peerId: string | null;
-        signals: any[];
-        created: number;
-        expires: number;
-    }
->();
+import { addSignal } from '@/lib/channel-store';
+// Updated import
+import type { SignalData } from '@/lib/signaling-service';
+
+// Import SignalData type from correct location
 
 export async function POST(
     request: NextRequest,
     { params }: { params: { channelId: string } },
 ) {
+    const { channelId } = params;
+    // Assuming the client sends a peerId in the header or body to identify itself
+    const senderPeerId = request.headers.get('X-Peer-ID'); // Example: Get peer ID from header
+
+    if (!senderPeerId) {
+        return NextResponse.json(
+            { error: 'Sender Peer ID missing' },
+            { status: 400 },
+        );
+    }
+
     try {
-        const { channelId } = params;
+        const signal = (await request.json()) as SignalData; // Type assertion
+        const result = addSignal(channelId, senderPeerId, signal); // Use imported function
 
-        const channel = channels.get(channelId);
-
-        if (!channel) {
+        if (!result.success) {
             return NextResponse.json(
-                { error: 'Channel not found' },
-                { status: 404 },
+                { error: result.error },
+                { status: result.status },
             );
         }
-
-        const signal = await request.json();
-        channel.signals.push(signal);
 
         return NextResponse.json({ success: true });
     } catch (error) {

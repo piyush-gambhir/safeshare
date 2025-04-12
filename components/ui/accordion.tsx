@@ -5,8 +5,6 @@ import * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const Accordion = AccordionPrimitive.Root;
 
 const AccordionItem = React.forwardRef<

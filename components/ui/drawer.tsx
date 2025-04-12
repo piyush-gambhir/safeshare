@@ -3,8 +3,6 @@ import { Drawer as DrawerPrimitive } from 'vaul';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const Drawer = ({
     shouldScaleBackground = true,
     ...props

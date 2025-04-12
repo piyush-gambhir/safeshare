@@ -5,8 +5,6 @@ import * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const MenubarMenu = MenubarPrimitive.Menu;
 
 const MenubarGroup = MenubarPrimitive.Group;

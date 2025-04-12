@@ -1,3 +1,6 @@
+'use client';
+
+// Import Next.js Image component
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     AlertCircle,
@@ -26,10 +29,20 @@ import {
     Upload,
     X,
 } from 'lucide-react';
-import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+// Import useCallback
+import Image from 'next/image';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { QRCode } from 'react-qrcode-logo';
 
-import { useToast } from '@/hooks/use-toast';
+import {
+    FileTransferManager,
+    TransferError,
+    TransferProgress,
+    TransferState,
+} from '@/lib/file-transfer-manager';
+// Corrected import
+import { type SignalData, SignalingService } from '@/lib/signaling-service';
+import { cn } from '@/lib/utils';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -52,19 +65,9 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useToast } from '@/components/ui/use-toast';
 
-import {
-    FileTransferManager,
-    type TransferError,
-    type TransferProgress,
-    type TransferState,
-} from '../lib/file-transfer-manager';
-import { SignalingService } from '../lib/signaling-service';
-import { cn } from '../lib/utils';
-import type { SignalData } from '../lib/webrtc-service';
-import QRCode from './qr-code';
-
-('use client');
+// Corrected import
 
 export default function FileTransfer() {
     const [activeTab, setActiveTab] = useState<string>('send');
@@ -92,6 +95,88 @@ export default function FileTransfer() {
 
     const { toast } = useToast();
 
+    // Wrap handlers used in useEffect dependencies with useCallback
+    const handleStateChange = useCallback(
+        (state: TransferState) => {
+            setTransferState(state);
+
+            if (state === 'transferring') {
+                // Start timer for elapsed time
+                transferStartTimeRef.current = Date.now();
+                if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                }
+
+                timerRef.current = setInterval(() => {
+                    const elapsed = Math.floor(
+                        (Date.now() - transferStartTimeRef.current) / 1000,
+                    );
+                    setElapsedTime(elapsed);
+                }, 1000);
+            } else if (state === 'completed') {
+                if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                }
+
+                toast({
+                    // toast is now stable due to useToast hook
+                    title: 'Transfer Complete',
+                    description: receivedFile
+                        ? `Successfully received ${receivedFile.name}`
+                        : 'File transfer completed successfully',
+                    variant: 'success',
+                });
+            } else if (state === 'error') {
+                if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                }
+            } else if (state === 'idle') {
+                if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                }
+                setElapsedTime(0);
+                setEstimatedTimeRemaining(null);
+            }
+        },
+        [receivedFile, toast],
+    ); // Add dependencies used inside
+
+    const handleError = useCallback(
+        (error: TransferError) => {
+            setError(error);
+            toast({
+                // toast is now stable
+                title: 'Transfer Error',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+        [toast],
+    ); // Add dependencies used inside
+
+    const handleFileReceived = useCallback((file: File) => {
+        setReceivedFile(file);
+
+        // Create preview URL for image files
+        if (file.type.startsWith('image/')) {
+            const url = URL.createObjectURL(file);
+            setFilePreviewUrl(url);
+        }
+    }, []); // No external dependencies
+
+    const handlePeerConnected = useCallback(
+        (peerId: string) => {
+            // Keep peerId parameter even if unused for now
+            toast({
+                // toast is now stable
+                title: 'Peer Connected',
+                description: 'Connection established with peer', // Use peerId here if needed in the future
+                variant: 'success',
+            });
+        },
+        [toast],
+    ); // Add dependencies used inside
+
     // Initialize services
     useEffect(() => {
         transferManagerRef.current = new FileTransferManager();
@@ -100,80 +185,43 @@ export default function FileTransfer() {
         const transferManager = transferManagerRef.current;
         const signalingService = signalingServiceRef.current;
 
-        // Set up event listeners
+        // Set up event listeners using the memoized handlers
         transferManager.onStateChange(handleStateChange);
-        transferManager.onProgress(handleProgress);
+        transferManager.onProgress(handleProgress); // Assuming handleProgress doesn't need useCallback yet
         transferManager.onError(handleError);
         transferManager.onFileReceived(handleFileReceived);
-        transferManager.onSignal(handleOutgoingSignal);
+        transferManager.onSignal(handleOutgoingSignal); // Assuming handleOutgoingSignal doesn't need useCallback yet
 
-        signalingService.onSignal(handleIncomingSignal);
-        signalingService.onChannelCreated(handleChannelCreated);
+        signalingService.onSignal(handleIncomingSignal); // Assuming handleIncomingSignal doesn't need useCallback yet
+        signalingService.onChannelCreated(handleChannelCreated); // Assuming handleChannelCreated doesn't need useCallback yet
         signalingService.onPeerConnected(handlePeerConnected);
 
+        // Cleanup function
         return () => {
-            // Clean up
             if (transferManager) {
                 transferManager.cancel();
             }
-
             if (signalingService) {
                 signalingService.closeChannel();
             }
-
             if (timerRef.current) {
                 clearInterval(timerRef.current);
             }
-
-            // Clean up file preview URL
             if (filePreviewUrl) {
+                // Access filePreviewUrl directly
                 URL.revokeObjectURL(filePreviewUrl);
             }
         };
-    }, []);
+        // Add all stable dependencies (useCallback refs, state setters are stable)
+    }, [
+        handleStateChange,
+        handleError,
+        handleFileReceived,
+        handlePeerConnected,
+        filePreviewUrl,
+    ]); // Add filePreviewUrl
 
     // Event handlers
-    const handleStateChange = (state: TransferState) => {
-        setTransferState(state);
-
-        if (state === 'transferring') {
-            // Start timer for elapsed time
-            transferStartTimeRef.current = Date.now();
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-
-            timerRef.current = setInterval(() => {
-                const elapsed = Math.floor(
-                    (Date.now() - transferStartTimeRef.current) / 1000,
-                );
-                setElapsedTime(elapsed);
-            }, 1000);
-        } else if (state === 'completed') {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-
-            toast({
-                title: 'Transfer Complete',
-                description: receivedFile
-                    ? `Successfully received ${receivedFile.name}`
-                    : 'File transfer completed successfully',
-                variant: 'success',
-            });
-        } else if (state === 'error') {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-        } else if (state === 'idle') {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-            setElapsedTime(0);
-            setEstimatedTimeRemaining(null);
-        }
-    };
-
     const handleProgress = (progress: TransferProgress) => {
         setProgress(progress);
 
@@ -183,25 +231,6 @@ export default function FileTransfer() {
                 progress.totalBytes - progress.bytesTransferred;
             const secondsRemaining = Math.ceil(bytesRemaining / progress.speed);
             setEstimatedTimeRemaining(secondsRemaining);
-        }
-    };
-
-    const handleError = (error: TransferError) => {
-        setError(error);
-        toast({
-            title: 'Transfer Error',
-            description: error.message,
-            variant: 'destructive',
-        });
-    };
-
-    const handleFileReceived = (file: File) => {
-        setReceivedFile(file);
-
-        // Create preview URL for image files
-        if (file.type.startsWith('image/')) {
-            const url = URL.createObjectURL(file);
-            setFilePreviewUrl(url);
         }
     };
 
@@ -224,14 +253,6 @@ export default function FileTransfer() {
     const handleChannelCreated = (channelId: string) => {
         setChannelId(channelId);
         setIsGeneratingLink(false);
-    };
-
-    const handlePeerConnected = (peerId: string) => {
-        toast({
-            title: 'Peer Connected',
-            description: 'Connection established with peer',
-            variant: 'success',
-        });
     };
 
     // UI event handlers
@@ -433,18 +454,19 @@ export default function FileTransfer() {
     // Check for channel ID in URL
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const channelId = params.get('channel');
+        const channelIdFromUrl = params.get('channel'); // Rename to avoid conflict
 
-        if (channelId) {
-            setJoinChannelId(channelId);
+        if (channelIdFromUrl) {
+            setJoinChannelId(channelIdFromUrl);
             setActiveTab('receive');
 
             toast({
+                // Add toast dependency
                 title: 'Sharing Link Detected',
                 description: 'Ready to receive a file from this link.',
             });
         }
-    }, []);
+    }, [toast]); // Add toast dependency
 
     // Format file size
     const formatFileSize = (bytes: number): string => {
@@ -561,12 +583,11 @@ export default function FileTransfer() {
                             <div className="mt-2 space-y-4">
                                 <div className="flex items-center gap-3">
                                     {filePreviewUrl ? (
-                                        <img
-                                            src={
-                                                filePreviewUrl ||
-                                                '/placeholder.svg'
-                                            }
+                                        <Image
+                                            src={filePreviewUrl}
                                             alt={receivedFile.name}
+                                            width={48}
+                                            height={48}
                                             className="h-16 w-16 rounded-md border object-cover"
                                         />
                                     ) : (
@@ -652,7 +673,7 @@ export default function FileTransfer() {
                                         <>
                                             <span>•</span>
                                             <span>
-                                                Remaining: ~
+                                                ETA:{' '}
                                                 {formatTime(
                                                     estimatedTimeRemaining,
                                                 )}
@@ -846,12 +867,11 @@ export default function FileTransfer() {
                                         <div className="flex items-center gap-4">
                                             <div className="flex-shrink-0">
                                                 {filePreviewUrl ? (
-                                                    <img
-                                                        src={
-                                                            filePreviewUrl ||
-                                                            '/placeholder.svg'
-                                                        }
+                                                    <Image
+                                                        src={filePreviewUrl}
                                                         alt={file.name}
+                                                        width={48} // Provide width
+                                                        height={48} // Provide height
                                                         className="h-12 w-12 rounded-md border object-cover"
                                                     />
                                                 ) : (
@@ -1014,7 +1034,14 @@ export default function FileTransfer() {
                                                     <QRCode
                                                         value={`${window.location.origin}?channel=${channelId}`}
                                                         size={180}
-                                                        logoUrl="/placeholder.svg?height=40&width=40"
+                                                        // Use Next.js Image for logo if possible, or ensure placeholder is in public dir
+                                                        logoImage="/favicon.ico" // Example: using favicon
+                                                        logoWidth={40}
+                                                        logoHeight={40}
+                                                        logoPadding={5}
+                                                        removeQrCodeBehindLogo={
+                                                            true
+                                                        }
                                                     />
                                                 </div>
                                             </div>
@@ -1037,7 +1064,7 @@ export default function FileTransfer() {
 
                     <TabsContent value="receive" className="mt-0 space-y-4">
                         <AnimatePresence mode="wait">
-                            {transferState === 'idle' ? (
+                            {transferState === 'idle' && !receivedFile ? ( // Added !receivedFile condition
                                 <motion.div
                                     key="receiveIdle"
                                     initial={{ opacity: 0, scale: 0.95 }}
@@ -1106,7 +1133,7 @@ export default function FileTransfer() {
                                         <p className="text-center text-xs text-muted-foreground">
                                             If the sender has generated a QR
                                             code, you can scan it with your
-                                            device's camera
+                                            device&apos;s camera
                                         </p>
                                         <Button
                                             variant="link"
@@ -1131,7 +1158,83 @@ export default function FileTransfer() {
                             ) : null}
                         </AnimatePresence>
 
-                        {renderTransferStatus()}
+                        {/* Render status OR received file info */}
+                        {transferState !== 'idle' || receivedFile
+                            ? renderTransferStatus()
+                            : null}
+
+                        {/* Display received file info if completed and file exists */}
+                        {transferState === 'completed' && receivedFile && (
+                            <motion.div
+                                key="fileReceived"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ duration: 0.2 }}
+                                className="mt-4 space-y-4"
+                            >
+                                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                    <AlertTitle>
+                                        File Received Successfully!
+                                    </AlertTitle>
+                                    <AlertDescription>
+                                        <div className="mt-4 space-y-4">
+                                            <div className="flex items-center gap-4 rounded-lg border bg-muted/10 p-4">
+                                                <div className="flex-shrink-0">
+                                                    {filePreviewUrl ? (
+                                                        <Image
+                                                            src={filePreviewUrl}
+                                                            alt={
+                                                                receivedFile.name
+                                                            }
+                                                            width={48}
+                                                            height={48}
+                                                            className="h-12 w-12 rounded-md border object-cover"
+                                                        />
+                                                    ) : (
+                                                        getFileTypeIcon(
+                                                            receivedFile,
+                                                        )
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate font-medium">
+                                                        {receivedFile.name}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                        <span>
+                                                            {formatFileSize(
+                                                                receivedFile.size,
+                                                            )}
+                                                        </span>
+                                                        <span>•</span>
+                                                        <span>
+                                                            {receivedFile.type ||
+                                                                'Unknown type'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                onClick={handleDownloadFile}
+                                                className="w-full"
+                                            >
+                                                <Download className="mr-2 h-4 w-4" />
+                                                Download File
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleCancel} // Reuse cancel to reset state
+                                                className="w-full"
+                                            >
+                                                Receive Another File
+                                            </Button>
+                                        </div>
+                                    </AlertDescription>
+                                </Alert>
+                            </motion.div>
+                        )}
                     </TabsContent>
                 </Tabs>
             </CardContent>

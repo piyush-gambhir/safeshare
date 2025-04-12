@@ -6,8 +6,6 @@ import { buttonVariants } from '@/components/ui/button';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const AlertDialog = AlertDialogPrimitive.Root;
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;

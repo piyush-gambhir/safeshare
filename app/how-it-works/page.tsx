@@ -27,8 +27,8 @@ export default function HowItWorksPage() {
 
             <p className="mb-8 text-muted-foreground">
                 SafeShare uses cutting-edge web technologies to enable secure,
-                direct file transfers between browsers. Here's a breakdown of
-                the key components and processes that make it work:
+                direct file transfers between browsers. Here&apos;s a breakdown
+                of the key components and processes that make it work:
             </p>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -161,9 +161,9 @@ export default function HowItWorksPage() {
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
                             SafeShare never stores your files on any server.
-                            Files exist only on the sender's and receiver's
-                            devices, ensuring maximum privacy and security. No
-                            accounts or logins are required.
+                            Files exist only on the sender&apos;s and
+                            receiver&apos;s devices, ensuring maximum privacy
+                            and security. No accounts or logins are required.
                         </p>
                     </CardContent>
                 </Card>
@@ -216,8 +216,8 @@ export default function HowItWorksPage() {
                             5
                         </span>
                         <span className="pt-1">
-                            The recipient's browser reassembles and decrypts the
-                            file.
+                            The recipient&apos;s browser reassembles and
+                            decrypts the file.
                         </span>
                     </li>
                     <li className="flex gap-2">

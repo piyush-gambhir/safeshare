@@ -1,46 +1,36 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// In-memory storage for channels (shared with other routes)
-const channels = new Map<
-    string,
-    {
-        id: string;
-        peerId: string | null;
-        signals: any[];
-        created: number;
-        expires: number;
-    }
->();
+import { getSignals } from '@/lib/channel-store';
+
+// Updated import
 
 export async function GET(
     request: NextRequest,
     { params }: { params: { channelId: string } },
 ) {
-    try {
-        const { channelId } = params;
+    const { channelId } = params;
+    // Assuming the client sends a peerId in the header or body to identify itself
+    const recipientPeerId = request.headers.get('X-Peer-ID'); // Example: Get peer ID from header
 
-        const channel = channels.get(channelId);
-
-        if (!channel) {
-            return NextResponse.json(
-                { error: 'Channel not found' },
-                { status: 404 },
-            );
-        }
-
-        const signals = [...channel.signals];
-        channel.signals = [];
-
-        return NextResponse.json({
-            channelId,
-            peerId: channel.peerId,
-            signals,
-        });
-    } catch (error) {
-        console.error('Error polling signals:', error);
+    if (!recipientPeerId) {
         return NextResponse.json(
-            { error: 'Failed to poll signals' },
-            { status: 500 },
+            { error: 'Recipient Peer ID missing' },
+            { status: 400 },
         );
     }
+
+    const result = getSignals(channelId, recipientPeerId); // Use imported function
+
+    if (result.error) {
+        return NextResponse.json(
+            { error: result.error },
+            { status: result.status },
+        );
+    }
+
+    // Return signals and the ID of the other peer (if connected)
+    return NextResponse.json({
+        signals: result.signals,
+        peerId: result.peerId, // The ID of the *other* peer in the channel
+    });
 }

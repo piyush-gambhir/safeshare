@@ -1,4 +1,9 @@
-import type { SignalData } from './webrtc-service';
+export type SignalData = {
+    type: 'offer' | 'answer' | 'ice-candidate';
+    payload: RTCSessionDescriptionInit | RTCIceCandidateInit;
+    // Add candidate property for backward compatibility or specific signaling needs if required
+    candidate?: RTCIceCandidateInit | null;
+};
 
 export interface SignalingChannel {
     id: string;
@@ -36,15 +41,19 @@ export class SignalingService {
             }
 
             const data = await response.json();
-            this.channelId = data.id;
+            const channelId = data.id;
+            if (!channelId) {
+                throw new Error('Server did not return a valid channel ID');
+            }
+            this.channelId = channelId;
 
             if (this.onChannelCreatedCallback) {
-                this.onChannelCreatedCallback(this.channelId);
+                this.onChannelCreatedCallback(channelId);
             }
 
             this.startPolling();
 
-            return this.channelId;
+            return channelId;
         } catch (error) {
             console.error('Error creating signaling channel:', error);
             throw error;
@@ -146,10 +155,14 @@ export class SignalingService {
             }
 
             if (data.peerId && !this.peerId) {
-                this.peerId = data.peerId;
+                const peerId = data.peerId;
+                if (!peerId) {
+                    throw new Error('Server did not return a valid peer ID');
+                }
+                this.peerId = peerId;
 
                 if (this.onPeerConnectedCallback) {
-                    this.onPeerConnectedCallback(this.peerId);
+                    this.onPeerConnectedCallback(peerId);
                 }
             }
         } catch (error) {

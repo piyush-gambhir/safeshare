@@ -1,3 +1,5 @@
+'use client';
+
 import { AnimatePresence, motion } from 'framer-motion';
 import { Github, Menu, Share2, Shield, X } from 'lucide-react';
 import Link from 'next/link';
@@ -5,8 +7,6 @@ import { useState } from 'react';
 
 import { ModeToggle } from './mode-toggle';
 import { Button } from './ui/button';
-
-('use client');
 
 export default function Header() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

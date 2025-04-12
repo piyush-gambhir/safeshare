@@ -91,9 +91,9 @@ export default function Footer() {
                         Legal
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                        SafeShare respects your privacy. We don't track your
-                        transfers or store your files. All data remains under
-                        your control at all times.
+                        SafeShare respects your privacy. We don&apos;t track
+                        your transfers or store your files. All data remains
+                        under your control at all times.
                     </p>
                 </div>
             </div>

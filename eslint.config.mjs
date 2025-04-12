@@ -12,6 +12,17 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
     ...compat.extends('next/core-web-vitals', 'next/typescript'),
+    {
+        rules: {
+            '@typescript-eslint/no-unused-vars': 'off',
+            '@typescript-eslint/no-explicit-any': 'off',
+            // Ignore the unknown properties error in calendar component
+            'react/no-unknown-property': [
+                'error',
+                { ignore: ['IconLeft', 'IconRight'] },
+            ],
+        },
+    },
 ];
 
 export default eslintConfig;

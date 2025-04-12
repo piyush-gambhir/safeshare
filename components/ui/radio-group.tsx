@@ -5,8 +5,6 @@ import * as React from 'react';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const RadioGroup = React.forwardRef<
     React.ElementRef<typeof RadioGroupPrimitive.Root>,
     React.ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>

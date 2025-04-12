@@ -23,8 +23,8 @@ export default function AboutPage() {
                         SafeShare was created with a simple mission: to enable
                         secure, private file transfers without relying on
                         centralized servers or cloud storage. We believe your
-                        data should remain yours, and sharing files shouldn't
-                        mean surrendering your privacy.
+                        data should remain yours, and sharing files
+                        shouldn&apos;t mean surrendering your privacy.
                     </p>
                 </section>
 
@@ -36,7 +36,7 @@ export default function AboutPage() {
                         SafeShare uses WebRTC technology to establish direct
                         peer-to-peer connections between browsers. This means
                         your files travel directly from your device to the
-                        recipient's device, without being stored on any
+                        recipient&apos;s device, without being stored on any
                         intermediate servers.
                     </p>
                     <p className="text-muted-foreground">
@@ -70,10 +70,11 @@ export default function AboutPage() {
                         Privacy Commitment
                     </h2>
                     <p className="text-muted-foreground">
-                        We're committed to privacy by design. SafeShare doesn't
-                        track your transfers, doesn't store your files, and
-                        doesn't require any personal information. Your data
-                        remains completely under your control at all times.
+                        We&apos;re committed to privacy by design. SafeShare
+                        doesn&apos;t track your transfers, doesn&apos;t store
+                        your files, and doesn&apos;t require any personal
+                        information. Your data remains completely under your
+                        control at all times.
                     </p>
                 </section>
             </div>

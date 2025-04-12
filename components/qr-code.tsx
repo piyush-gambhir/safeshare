@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+'use client';
 
-('use client');
+import { useEffect, useRef } from 'react';
 
 interface QRCodeProps {
     value: string;
@@ -23,7 +23,7 @@ export default function QRCode({
         if (!canvasRef.current) return;
 
         // Import QRCode.js dynamically
-        import('qrcode').then((QRCode) => {
+        import('qrcode').then((QRCode: any) => {
             QRCode.toCanvas(
                 canvasRef.current,
                 value,
@@ -36,7 +36,7 @@ export default function QRCode({
                     },
                     errorCorrectionLevel: 'H', // High - allows for logo overlay
                 },
-                async (error) => {
+                async (error: Error | null) => {
                     if (error) {
                         console.error('Error generating QR code:', error);
                         return;

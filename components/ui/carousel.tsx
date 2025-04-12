@@ -8,8 +8,6 @@ import { Button } from '@/components/ui/button';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 type CarouselApi = UseEmblaCarouselType[1];
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>;
 type CarouselOptions = UseCarouselParameters[0];

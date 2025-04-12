@@ -1,48 +1,23 @@
-import { randomUUID } from 'crypto';
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-// In-memory storage for channels (shared with other routes)
-const channels = new Map<
-    string,
-    {
-        id: string;
-        peerId: string | null;
-        signals: any[];
-        created: number;
-        expires: number;
-    }
->();
+import { joinChannel } from '@/lib/channel-store';
+
+// Updated import
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { channelId: string } },
+    { params }: { params: { channelId: string } }, // Specify type for params
 ) {
+    const { channelId } = params;
+
     try {
-        const { channelId } = params;
+        const response = joinChannel(channelId); // Use imported function
 
-        const channel = channels.get(channelId);
-
-        if (!channel) {
-            return NextResponse.json(
-                { error: 'Channel not found' },
-                { status: 404 },
-            );
+        if (response.error) {
+            return NextResponse.json(response, { status: response.status });
         }
 
-        if (channel.peerId) {
-            return NextResponse.json(
-                { error: 'Channel already has a peer' },
-                { status: 409 },
-            );
-        }
-
-        const peerId = randomUUID();
-        channel.peerId = peerId;
-
-        return NextResponse.json({
-            channelId,
-            peerId,
-        });
+        return NextResponse.json(response);
     } catch (error) {
         console.error('Error joining channel:', error);
         return NextResponse.json(

@@ -3,8 +3,6 @@ import * as ResizablePrimitive from 'react-resizable-panels';
 
 import { cn } from '../../lib/utils';
 
-('use client');
-
 const ResizablePanelGroup = ({
     className,
     ...props

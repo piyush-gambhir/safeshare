@@ -1,6 +1,7 @@
 import { EncryptionService } from './encryption-service';
 import { FileChunker, type FileMetadata } from './file-chunker';
-import { type SignalData, WebRTCService } from './webrtc-service';
+import type { SignalData } from './signaling-service';
+import WebRTCService from './webrtc-service';
 
 export type TransferRole = 'sender' | 'receiver';
 
@@ -262,14 +263,22 @@ export class FileTransferManager {
         }
     }
 
-    private async handleReceivedData(data: ArrayBuffer): Promise<void> {
+    private async handleReceivedData(data: ArrayBufferLike): Promise<void> {
         try {
+            // Convert ArrayBufferLike to ArrayBuffer if needed
+            const buffer =
+                data instanceof ArrayBuffer
+                    ? data
+                    : new Uint8Array(data).buffer;
+
             // First 4 bytes contain the header size
-            const headerSizeView = new DataView(data, 0, 4);
+            const headerSizeView = new DataView(buffer, 0, 4);
             const headerSize = headerSizeView.getUint32(0, true);
 
             // Extract the header
-            const headerBuffer = data.slice(4, 4 + headerSize);
+            const headerBuffer = new Uint8Array(
+                buffer.slice(4, 4 + headerSize),
+            );
             const headerString = new TextDecoder().decode(headerBuffer);
             const header = JSON.parse(headerString);
 
@@ -283,7 +292,7 @@ export class FileTransferManager {
                 this.updateProgress();
             } else if (header.type === 'chunk') {
                 // Handle file chunk
-                const encryptedChunkData = data.slice(4 + headerSize);
+                const encryptedChunkData = buffer.slice(4 + headerSize);
                 const chunkData =
                     await this.encryptionService.decrypt(encryptedChunkData);
 
