@@ -19,9 +19,10 @@ type FileHandler struct {
 }
 
 // NewFileHandler creates a new FileHandler
-func NewFileHandler(fileService service.FileTransferServiceInterface, authService service.AuthService) *FileHandler {
+func NewFileHandler(fileService service.FileTransferServiceInterface, authService service.AuthServiceInterface) *FileHandler {
 	return &FileHandler{
 		fileService: fileService,
+		authService: authService,
 	}
 }
 

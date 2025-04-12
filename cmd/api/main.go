@@ -98,7 +98,8 @@ func main() {
 
 	// Set up handlers
 	authHandler := handler.NewAuthHandler(authService)
-	fileHandler := handler.NewFileHandler(fileService, *authService)
+	// Fix: Pass authService as interface, not by dereferencing
+	fileHandler := handler.NewFileHandler(fileService, authService)
 	healthHandler := handler.NewHealthHandler()
 	webrtcHandler := handler.NewWebRTCHandler(webrtcService, authService)
 
