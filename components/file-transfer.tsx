@@ -34,15 +34,14 @@ import Image from 'next/image';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCode } from 'react-qrcode-logo';
 
+import { apiService } from '@/lib/api-service';
+import { cn } from '@/lib/utils';
 import {
-    FileTransferManager,
     TransferError,
     TransferProgress,
     TransferState,
-} from '@/lib/file-transfer-manager';
-// Corrected import
-import { type SignalData, SignalingService } from '@/lib/signaling-service';
-import { cn } from '@/lib/utils';
+    WebRTCClient,
+} from '@/lib/webrtc-client';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -67,8 +66,6 @@ import {
 } from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
 
-// Corrected import
-
 export default function FileTransfer() {
     const [activeTab, setActiveTab] = useState<string>('send');
     const [file, setFile] = useState<File | null>(null);
@@ -88,81 +85,46 @@ export default function FileTransfer() {
     const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const transferManagerRef = useRef<FileTransferManager | null>(null);
-    const signalingServiceRef = useRef<SignalingService | null>(null);
+    const webrtcClientRef = useRef<WebRTCClient | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const transferStartTimeRef = useRef<number>(0);
 
     const { toast } = useToast();
 
-    // Wrap handlers used in useEffect dependencies with useCallback
-    const handleStateChange = useCallback(
-        (state: TransferState) => {
-            setTransferState(state);
+    // Event handlers
+    const handleProgress = useCallback((progress: TransferProgress) => {
+        setProgress(progress);
+    }, []);
 
-            if (state === 'transferring') {
-                // Start timer for elapsed time
-                transferStartTimeRef.current = Date.now();
-                if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                }
+    const handleError = useCallback((error: TransferError) => {
+        setError(error);
+        setTransferState('error');
+    }, []);
 
-                timerRef.current = setInterval(() => {
-                    const elapsed = Math.floor(
-                        (Date.now() - transferStartTimeRef.current) / 1000,
-                    );
-                    setElapsedTime(elapsed);
-                }, 1000);
-            } else if (state === 'completed') {
-                if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                }
-
-                toast({
-                    // toast is now stable due to useToast hook
-                    title: 'Transfer Complete',
-                    description: receivedFile
-                        ? `Successfully received ${receivedFile.name}`
-                        : 'File transfer completed successfully',
-                    variant: 'success',
-                });
-            } else if (state === 'error') {
-                if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                }
-            } else if (state === 'idle') {
-                if (timerRef.current) {
-                    clearInterval(timerRef.current);
-                }
-                setElapsedTime(0);
-                setEstimatedTimeRemaining(null);
-            }
-        },
-        [receivedFile, toast],
-    ); // Add dependencies used inside
-
-    const handleError = useCallback(
-        (error: TransferError) => {
-            setError(error);
-            toast({
-                // toast is now stable
-                title: 'Transfer Error',
-                description: error.message,
-                variant: 'destructive',
-            });
-        },
-        [toast],
-    ); // Add dependencies used inside
+    const handleStateChange = useCallback((state: TransferState) => {
+        setTransferState(state);
+    }, []);
 
     const handleFileReceived = useCallback((file: File) => {
         setReceivedFile(file);
+        const url = URL.createObjectURL(file);
+        setFilePreviewUrl(url);
+        setTransferState('completed');
 
-        // Create preview URL for image files
-        if (file.type.startsWith('image/')) {
-            const url = URL.createObjectURL(file);
-            setFilePreviewUrl(url);
-        }
-    }, []); // No external dependencies
+        // Automatically trigger download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        toast({
+            title: 'File Received',
+            description: `${file.name} has been downloaded.`,
+            variant: 'success',
+        });
+    }, []);
 
     const handlePeerConnected = useCallback(
         (peerId: string) => {
@@ -177,79 +139,27 @@ export default function FileTransfer() {
         [toast],
     ); // Add dependencies used inside
 
-    // Initialize services
+    // Initialize WebRTC client
     useEffect(() => {
-        transferManagerRef.current = new FileTransferManager();
-        signalingServiceRef.current = new SignalingService();
+        webrtcClientRef.current = new WebRTCClient();
 
-        const transferManager = transferManagerRef.current;
-        const signalingService = signalingServiceRef.current;
+        const client = webrtcClientRef.current;
 
-        // Set up event listeners using the memoized handlers
-        transferManager.onStateChange(handleStateChange);
-        transferManager.onProgress(handleProgress); // Assuming handleProgress doesn't need useCallback yet
-        transferManager.onError(handleError);
-        transferManager.onFileReceived(handleFileReceived);
-        transferManager.onSignal(handleOutgoingSignal); // Assuming handleOutgoingSignal doesn't need useCallback yet
-
-        signalingService.onSignal(handleIncomingSignal); // Assuming handleIncomingSignal doesn't need useCallback yet
-        signalingService.onChannelCreated(handleChannelCreated); // Assuming handleChannelCreated doesn't need useCallback yet
-        signalingService.onPeerConnected(handlePeerConnected);
+        // Set up event listeners
+        client.onStateChange(handleStateChange);
+        client.onProgress(handleProgress);
+        client.onError(handleError);
+        client.onFileReceived(handleFileReceived);
 
         // Cleanup function
         return () => {
-            if (transferManager) {
-                transferManager.cancel();
-            }
-            if (signalingService) {
-                signalingService.closeChannel();
-            }
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-            if (filePreviewUrl) {
-                // Access filePreviewUrl directly
-                URL.revokeObjectURL(filePreviewUrl);
+            if (webrtcClientRef.current) {
+                webrtcClientRef.current.cancel();
             }
         };
-        // Add all stable dependencies (useCallback refs, state setters are stable)
-    }, [
-        handleStateChange,
-        handleError,
-        handleFileReceived,
-        handlePeerConnected,
-        filePreviewUrl,
-    ]); // Add filePreviewUrl
+    }, [handleStateChange, handleProgress, handleError, handleFileReceived]);
 
     // Event handlers
-    const handleProgress = (progress: TransferProgress) => {
-        setProgress(progress);
-
-        // Calculate estimated time remaining
-        if (progress.speed > 0) {
-            const bytesRemaining =
-                progress.totalBytes - progress.bytesTransferred;
-            const secondsRemaining = Math.ceil(bytesRemaining / progress.speed);
-            setEstimatedTimeRemaining(secondsRemaining);
-        }
-    };
-
-    const handleOutgoingSignal = (signal: SignalData) => {
-        if (signalingServiceRef.current) {
-            signalingServiceRef.current.sendSignal(signal).catch((error) => {
-                console.error('Error sending signal:', error);
-            });
-        }
-    };
-
-    const handleIncomingSignal = (signal: SignalData) => {
-        if (transferManagerRef.current) {
-            transferManagerRef.current.handleSignal(signal).catch((error) => {
-                console.error('Error handling signal:', error);
-            });
-        }
-    };
-
     const handleChannelCreated = (channelId: string) => {
         setChannelId(channelId);
         setIsGeneratingLink(false);
@@ -314,21 +224,35 @@ export default function FileTransfer() {
     };
 
     const handleSendFile = async () => {
-        if (
-            !file ||
-            !transferManagerRef.current ||
-            !signalingServiceRef.current
-        ) {
+        if (!file || !webrtcClientRef.current) {
             return;
         }
 
         try {
             setIsGeneratingLink(true);
-            // Create a signaling channel
-            await signalingServiceRef.current.createChannel();
 
-            // Initiate file transfer
-            await transferManagerRef.current.initiateSend(file);
+            // Initiate file share with backend
+            const response = await apiService.initiateFileShare({
+                name: file.name,
+                size: file.size,
+                type: file.type,
+            });
+
+            // Store session info
+            setChannelId(response.sessionId);
+
+            // Initialize WebRTC with the received public key
+            await webrtcClientRef.current.initiateSend(
+                file,
+                response.publicKey,
+            );
+
+            toast({
+                title: 'Link Generated',
+                description:
+                    'Share this link with the recipient to start the transfer.',
+                variant: 'success',
+            });
         } catch (error) {
             setIsGeneratingLink(false);
             console.error('Error initiating send:', error);
@@ -341,59 +265,62 @@ export default function FileTransfer() {
     };
 
     const handleJoinChannel = async () => {
-        if (
-            !joinChannelId ||
-            !transferManagerRef.current ||
-            !signalingServiceRef.current
-        ) {
+        if (!joinChannelId || !webrtcClientRef.current) {
             return;
         }
 
         try {
             setIsJoining(true);
-            // Join the signaling channel
-            await signalingServiceRef.current.joinChannel(joinChannelId);
 
-            // Initiate file receive
-            await transferManagerRef.current.initiateReceive();
+            // Extract just the channel ID for the API endpoint
+            const channelIdOnly =
+                joinChannelId.split('?channel=')[1] || joinChannelId;
+
+            // Get session info from backend
+            const sessionInfo = await apiService.getSessionInfo(channelIdOnly);
+            console.log('Received session info:', sessionInfo);
+
+            // Initialize WebRTC with the session info
+            await webrtcClientRef.current.initiateReceive(
+                sessionInfo.publicKey,
+                sessionInfo.fileMetadata,
+            );
+
+            // Update status in backend
+            await apiService.updateStatus(sessionInfo.sessionId, 'connected');
+
+            toast({
+                title: 'Connected',
+                description: 'Ready to receive the file.',
+                variant: 'success',
+            });
         } catch (error) {
             setIsJoining(false);
             console.error('Error joining channel:', error);
             toast({
                 title: 'Connection Error',
                 description:
-                    'Failed to join channel. Please check the ID and try again.',
+                    'Failed to join the channel. Please check the link and try again.',
                 variant: 'destructive',
             });
         }
     };
 
     const handlePauseResume = () => {
-        if (!transferManagerRef.current) {
-            return;
-        }
+        if (!webrtcClientRef.current) return;
 
         if (transferState === 'transferring') {
-            transferManagerRef.current.pause();
-            toast({
-                title: 'Transfer Paused',
-                description: 'You can resume the transfer at any time.',
-            });
-        } else if (transferState === 'paused') {
-            transferManagerRef.current.resume();
-            toast({
-                title: 'Transfer Resumed',
-                description: 'Continuing from where we left off.',
-            });
+            webrtcClientRef.current.cancel();
+            setTransferState('idle');
+        } else if (transferState === 'idle') {
+            handleSendFile();
         }
     };
 
     const handleCancel = () => {
-        if (!transferManagerRef.current) {
-            return;
-        }
+        if (!webrtcClientRef.current) return;
 
-        transferManagerRef.current.cancel();
+        webrtcClientRef.current.cancel();
         setFile(null);
         setReceivedFile(null);
         setChannelId('');
@@ -420,7 +347,10 @@ export default function FileTransfer() {
             return;
         }
 
-        const url = `${window.location.origin}?channel=${channelId}`;
+        // Extract just the channel ID for the API endpoint
+        const channelIdOnly = channelId.split('?channel=')[1] || channelId;
+        const url = `${window.location.origin}?channel=${channelIdOnly}`;
+
         navigator.clipboard.writeText(url).then(() => {
             toast({
                 title: 'Link Copied',
@@ -454,19 +384,18 @@ export default function FileTransfer() {
     // Check for channel ID in URL
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const channelIdFromUrl = params.get('channel'); // Rename to avoid conflict
+        const channelIdFromUrl = params.get('channel');
 
         if (channelIdFromUrl) {
             setJoinChannelId(channelIdFromUrl);
             setActiveTab('receive');
 
             toast({
-                // Add toast dependency
                 title: 'Sharing Link Detected',
                 description: 'Ready to receive a file from this link.',
             });
         }
-    }, [toast]); // Add toast dependency
+    }, [toast]);
 
     // Format file size
     const formatFileSize = (bytes: number): string => {
@@ -547,200 +476,53 @@ export default function FileTransfer() {
 
     // Render transfer status
     const renderTransferStatus = () => {
-        if (error) {
-            return (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                >
-                    <Alert variant="destructive" className="mt-4">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{error.message}</AlertDescription>
-                    </Alert>
-                </motion.div>
-            );
-        }
-
-        if (transferState === 'idle') {
-            return null;
-        }
-
-        if (transferState === 'completed' && receivedFile) {
-            return (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                >
-                    <Alert className="mt-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        <AlertTitle>Transfer Complete</AlertTitle>
-                        <AlertDescription>
-                            <div className="mt-2 space-y-4">
-                                <div className="flex items-center gap-3">
-                                    {filePreviewUrl ? (
-                                        <Image
-                                            src={filePreviewUrl}
-                                            alt={receivedFile.name}
-                                            width={48}
-                                            height={48}
-                                            className="h-16 w-16 rounded-md border object-cover"
-                                        />
-                                    ) : (
-                                        getFileTypeIcon(receivedFile)
-                                    )}
-                                    <div>
-                                        <p className="font-medium">
-                                            {receivedFile.name}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {formatFileSize(receivedFile.size)}
-                                        </p>
-                                    </div>
-                                </div>
-                                <Button
-                                    onClick={handleDownloadFile}
-                                    className="mt-2 w-full"
-                                >
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download File
-                                </Button>
-                            </div>
-                        </AlertDescription>
-                    </Alert>
-                </motion.div>
-            );
-        }
+        if (!progress) return null;
 
         return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-                className="mt-4 space-y-4"
-            >
-                <div className="flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">
-                                {transferState === 'connecting'
-                                    ? 'Establishing Connection...'
-                                    : transferState === 'preparing'
-                                      ? 'Preparing Transfer...'
-                                      : transferState === 'transferring'
-                                        ? 'Transferring...'
-                                        : transferState === 'paused'
-                                          ? 'Transfer Paused'
-                                          : 'Processing...'}
-                            </p>
-                            {transferState === 'transferring' && (
-                                <Badge
-                                    variant="outline"
-                                    className="animate-pulse bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400"
-                                >
-                                    Live
-                                </Badge>
-                            )}
-                            {transferState === 'paused' && (
-                                <Badge variant="outline">Paused</Badge>
-                            )}
-                        </div>
-                        {progress && (
-                            <div className="mt-1 flex flex-col text-xs text-muted-foreground">
-                                <div className="flex items-center gap-2">
-                                    <span>
-                                        {formatFileSize(
-                                            progress.bytesTransferred,
-                                        )}{' '}
-                                        of {formatFileSize(progress.totalBytes)}
-                                    </span>
-                                    <span>•</span>
-                                    <span className="font-medium">
-                                        {formatSpeed(progress.speed)}
-                                    </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                    <Clock className="h-3 w-3" />
-                                    <span>
-                                        Elapsed: {formatTime(elapsedTime)}
-                                    </span>
-                                    {estimatedTimeRemaining !== null && (
-                                        <>
-                                            <span>•</span>
-                                            <span>
-                                                ETA:{' '}
-                                                {formatTime(
-                                                    estimatedTimeRemaining,
-                                                )}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+            <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                        {transferState === 'transferring' ? (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={handlePauseResume}
+                            >
+                                <Pause className="h-4 w-4" />
+                            </Button>
+                        ) : transferState === 'idle' ? (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={handlePauseResume}
+                            >
+                                <Play className="h-4 w-4" />
+                            </Button>
+                        ) : null}
+                        <span>
+                            {formatFileSize(progress.bytesTransferred)} of{' '}
+                            {formatFileSize(progress.totalBytes)}
+                        </span>
                     </div>
-                    <div className="flex space-x-2">
-                        {(transferState === 'transferring' ||
-                            transferState === 'paused') && (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            onClick={handlePauseResume}
-                                        >
-                                            {transferState ===
-                                            'transferring' ? (
-                                                <Pause className="h-4 w-4" />
-                                            ) : (
-                                                <Play className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        {transferState === 'transferring'
-                                            ? 'Pause Transfer'
-                                            : 'Resume Transfer'}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                    <div className="flex items-center gap-4">
+                        {progress.speed > 0 && (
+                            <span>{formatSpeed(progress.speed)}</span>
                         )}
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={handleCancel}
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Cancel Transfer</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        {estimatedTimeRemaining !== null && (
+                            <span>
+                                {formatTime(estimatedTimeRemaining)} remaining
+                            </span>
+                        )}
                     </div>
                 </div>
-
-                {progress && (
-                    <div className="space-y-1">
-                        <Progress value={progress.percentage} className="h-2" />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>{Math.round(progress.percentage)}%</span>
-                            <span>
-                                {progress.chunksTransferred} of{' '}
-                                {progress.totalChunks} chunks
-                            </span>
-                        </div>
-                    </div>
-                )}
-            </motion.div>
+                <Progress
+                    value={
+                        (progress.bytesTransferred / progress.totalBytes) * 100
+                    }
+                />
+            </div>
         );
     };
 

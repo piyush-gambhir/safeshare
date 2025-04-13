@@ -1,3 +1,6 @@
+import type { Instance, SignalData as PeerSignalData } from 'simple-peer';
+import SimplePeer from 'simple-peer';
+
 import type { SignalData } from './signaling-service';
 
 // Corrected import
@@ -5,20 +8,39 @@ import type { SignalData } from './signaling-service';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // milliseconds
 
-class WebRTCService {
-    private peerConnection: RTCPeerConnection | null = null;
+export interface WebRTCConfig {
+    iceServers: Array<{ urls: string }>;
+}
+
+export type ConnectionState =
+    | 'new'
+    | 'connecting'
+    | 'connected'
+    | 'disconnected'
+    | 'closed'
+    | 'failed';
+export type DataChannelState = 'connecting' | 'open' | 'closing' | 'closed';
+
+export class WebRTCService {
+    private peer: Instance | null = null;
+    private config: WebRTCConfig;
     private dataChannel: RTCDataChannel | null = null;
     private onConnectionStateChangeCallback:
-        | ((state: RTCPeerConnectionState) => void)
+        | ((state: ConnectionState) => void)
         | null = null;
     private onDataChannelStateChangeCallback:
-        | ((state: RTCDataChannelState) => void)
+        | ((state: DataChannelState) => void)
         | null = null;
-    private onDataReceivedCallback: ((data: ArrayBufferLike) => void) | null =
-        null;
-    private onSignalCallback: ((signal: SignalData) => void) | null = null;
+    private onDataReceivedCallback: ((data: ArrayBuffer) => void) | null = null;
+    private onSignalCallback: ((signal: PeerSignalData) => void) | null = null;
 
-    constructor() {
+    constructor(config?: WebRTCConfig) {
+        this.config = config || {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' },
+            ],
+        };
         this.initializePeerConnection();
     }
 
@@ -30,69 +52,80 @@ class WebRTCService {
             ],
         };
 
-        this.peerConnection = new RTCPeerConnection(config);
+        this.peer = new SimplePeer({
+            initiator: true,
+            trickle: true,
+            config: this.config,
+        });
 
-        this.peerConnection.onicecandidate = (event) => {
-            if (event.candidate && this.onSignalCallback) {
-                this.onSignalCallback({
-                    type: 'ice-candidate',
-                    payload: event.candidate,
-                });
-            }
-        };
-
-        this.peerConnection.onconnectionstatechange = () => {
-            if (this.peerConnection && this.onConnectionStateChangeCallback) {
-                this.onConnectionStateChangeCallback(
-                    this.peerConnection.connectionState,
-                );
-            }
-        };
-
-        this.peerConnection.ondatachannel = (event) => {
-            this.dataChannel = event.channel;
-            this.setupDataChannel();
-        };
+        this.setupPeerEvents();
     }
 
-    private setupDataChannel() {
-        if (!this.dataChannel) return;
+    private setupPeerEvents(): void {
+        if (!this.peer) return;
 
-        this.dataChannel.binaryType = 'arraybuffer';
-
-        this.dataChannel.onopen = () => {
-            if (this.onDataChannelStateChangeCallback) {
-                this.onDataChannelStateChangeCallback('open');
+        this.peer.on('signal', (data: PeerSignalData) => {
+            if (this.onSignalCallback) {
+                this.onSignalCallback(data);
             }
-        };
+        });
 
-        this.dataChannel.onclose = () => {
-            if (this.onDataChannelStateChangeCallback) {
-                this.onDataChannelStateChangeCallback('closed');
+        this.peer.on('connect', () => {
+            if (this.onConnectionStateChangeCallback) {
+                this.onConnectionStateChangeCallback('connected');
             }
-        };
+        });
 
-        this.dataChannel.onmessage = (event) => {
+        this.peer.on('close', () => {
+            if (this.onConnectionStateChangeCallback) {
+                this.onConnectionStateChangeCallback('closed');
+            }
+        });
+
+        this.peer.on('error', (err: Error) => {
+            console.error('Peer connection error:', err);
+            if (this.onConnectionStateChangeCallback) {
+                this.onConnectionStateChangeCallback('failed');
+            }
+        });
+
+        this.peer.on('data', (data: ArrayBuffer) => {
             if (this.onDataReceivedCallback) {
-                this.onDataReceivedCallback(event.data);
+                this.onDataReceivedCallback(data);
             }
-        };
+        });
+    }
+
+    createPeer(initiator: boolean): Instance {
+        this.peer = new SimplePeer({
+            initiator,
+            trickle: true,
+            config: this.config,
+        });
+        this.setupPeerEvents();
+        return this.peer;
+    }
+
+    destroyPeer(): void {
+        if (this.peer) {
+            this.peer.destroy();
+            this.peer = null;
+        }
+    }
+
+    getPeer(): Instance | null {
+        return this.peer;
     }
 
     public async createOffer(): Promise<void> {
-        if (!this.peerConnection) return;
+        if (!this.peer) return;
 
-        this.dataChannel = this.peerConnection.createDataChannel(
-            'file-transfer',
-            {
-                ordered: true,
-            },
-        );
+        this.dataChannel = this.peer.signalDataChannel;
         this.setupDataChannel();
 
         try {
-            const offer = await this.peerConnection.createOffer();
-            await this.peerConnection.setLocalDescription(offer);
+            const offer = await this.peer.signalDataChannel.createOffer();
+            await this.peer.signalDataChannel.setLocalDescription(offer);
 
             if (this.onSignalCallback) {
                 this.onSignalCallback({
@@ -108,20 +141,20 @@ class WebRTCService {
 
     // Method to handle incoming signals
     async handleSignal(signal: SignalData): Promise<void> {
-        if (!this.peerConnection) {
+        if (!this.peer) {
             console.warn('Peer connection not initialized. Ignoring signal.');
             return;
         }
 
         try {
             if (signal.type === 'offer') {
-                await this.peerConnection.setRemoteDescription(
+                await this.peer.signalDataChannel.setRemoteDescription(
                     new RTCSessionDescription(
                         signal.payload as RTCSessionDescriptionInit,
                     ),
                 );
-                const answer = await this.peerConnection.createAnswer();
-                await this.peerConnection.setLocalDescription(answer);
+                const answer = await this.peer.signalDataChannel.createAnswer();
+                await this.peer.signalDataChannel.setLocalDescription(answer);
 
                 if (this.onSignalCallback) {
                     this.onSignalCallback({
@@ -130,13 +163,13 @@ class WebRTCService {
                     });
                 }
             } else if (signal.type === 'answer') {
-                await this.peerConnection.setRemoteDescription(
+                await this.peer.signalDataChannel.setRemoteDescription(
                     new RTCSessionDescription(
                         signal.payload as RTCSessionDescriptionInit,
                     ),
                 );
             } else if (signal.type === 'ice-candidate') {
-                await this.peerConnection.addIceCandidate(
+                await this.peer.signalDataChannel.addIceCandidate(
                     new RTCIceCandidate(signal.payload as RTCIceCandidateInit),
                 );
             } else {
@@ -165,22 +198,22 @@ class WebRTCService {
     }
 
     public onConnectionStateChange(
-        callback: (state: RTCPeerConnectionState) => void,
+        callback: (state: ConnectionState) => void,
     ): void {
         this.onConnectionStateChangeCallback = callback;
     }
 
     public onDataChannelStateChange(
-        callback: (state: RTCDataChannelState) => void,
+        callback: (state: DataChannelState) => void,
     ): void {
         this.onDataChannelStateChangeCallback = callback;
     }
 
-    public onDataReceived(callback: (data: ArrayBufferLike) => void): void {
+    public onDataReceived(callback: (data: ArrayBuffer) => void): void {
         this.onDataReceivedCallback = callback;
     }
 
-    public onSignal(callback: (signal: SignalData) => void): void {
+    public onSignal(callback: (signal: PeerSignalData) => void): void {
         this.onSignalCallback = callback;
     }
 
@@ -189,22 +222,59 @@ class WebRTCService {
             this.dataChannel.close();
         }
 
-        if (this.peerConnection) {
-            this.peerConnection.close();
+        if (this.peer) {
+            this.peer.destroy();
         }
 
         this.dataChannel = null;
-        this.peerConnection = null;
+        this.peer = null;
     }
 
-    public getConnectionState(): RTCPeerConnectionState {
-        return this.peerConnection
-            ? this.peerConnection.connectionState
-            : 'closed';
+    public getConnectionState(): ConnectionState {
+        if (!this.peer) return 'closed';
+        if (this.peer.connected) return 'connected';
+        if (this.peer.destroyed) return 'closed';
+        return 'connecting';
     }
 
     public getDataChannelState(): RTCDataChannelState {
         return this.dataChannel ? this.dataChannel.readyState : 'closed';
+    }
+
+    private setupDataChannel() {
+        if (!this.dataChannel) return;
+
+        this.dataChannel.binaryType = 'arraybuffer';
+
+        this.dataChannel.onopen = () => {
+            if (this.onDataChannelStateChangeCallback) {
+                this.onDataChannelStateChangeCallback('open');
+            }
+        };
+
+        this.dataChannel.onclose = () => {
+            if (this.onDataChannelStateChangeCallback) {
+                this.onDataChannelStateChangeCallback('closed');
+            }
+        };
+
+        this.dataChannel.onmessage = (event) => {
+            if (this.onDataReceivedCallback) {
+                this.onDataReceivedCallback(event.data);
+            }
+        };
+    }
+
+    signal(data: PeerSignalData): void {
+        if (this.peer) {
+            this.peer.signal(data);
+        }
+    }
+
+    send(data: ArrayBuffer): void {
+        if (this.peer && this.peer.connected) {
+            this.peer.send(data);
+        }
     }
 }
 
