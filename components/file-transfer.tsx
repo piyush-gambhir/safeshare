@@ -1,50 +1,24 @@
 'use client';
 
-// Import Next.js Image component
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-    AlertCircle,
-    Archive,
-    CheckCircle2,
-    Clock,
-    Code,
-    Copy,
-    Download,
-    ExternalLink,
-    File,
-    FileIcon,
-    FileText,
-    Film,
-    ImageIcon,
-    Info,
-    Link,
-    Music,
-    Pause,
-    Play,
-    QrCode,
-    RefreshCw,
-    Server,
-    Share2,
-    Shield,
-    Upload,
-    X,
-} from 'lucide-react';
-// Import useCallback
-import Image from 'next/image';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QRCode } from 'react-qrcode-logo';
+import { useEffect, useRef, useState } from 'react';
 
-import { apiService } from '@/lib/api-service';
-import { cn } from '@/lib/utils';
 import {
-    TransferError,
-    TransferProgress,
-    TransferState,
-    WebRTCClient,
-} from '@/lib/webrtc-client';
+    FileMetadata,
+    getSessionInfo,
+    initiateShare,
+    updateStatus,
+    updateTorrent,
+} from '@/lib/api';
+import {
+    addIceCandidate,
+    createAnswer,
+    createOffer,
+    createPeerConnection,
+    receiveFile,
+    sendFile,
+    setRemoteDescription,
+} from '@/lib/webrtc';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -57,345 +31,283 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function FileTransfer() {
-    const [activeTab, setActiveTab] = useState<string>('send');
-    const [file, setFile] = useState<File | null>(null);
-    const [receivedFile, setReceivedFile] = useState<File | null>(null);
-    const [channelId, setChannelId] = useState<string>('');
-    const [joinChannelId, setJoinChannelId] = useState<string>('');
-    const [transferState, setTransferState] = useState<TransferState>('idle');
-    const [progress, setProgress] = useState<TransferProgress | null>(null);
-    const [error, setError] = useState<TransferError | null>(null);
-    const [isDragging, setIsDragging] = useState<boolean>(false);
-    const [isGeneratingLink, setIsGeneratingLink] = useState<boolean>(false);
-    const [isJoining, setIsJoining] = useState<boolean>(false);
-    const [elapsedTime, setElapsedTime] = useState<number>(0);
-    const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<
-        number | null
-    >(null);
-    const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
-
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const webrtcClientRef = useRef<WebRTCClient | null>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const transferStartTimeRef = useRef<number>(0);
-
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [shareLink, setShareLink] = useState<string>('');
+    const [sessionId, setSessionId] = useState<string>('');
+    const [progress, setProgress] = useState<number>(0);
+    const [peers, setPeers] = useState<number>(0);
+    const [status, setStatus] = useState<string>('idle');
+    const [isUploading, setIsUploading] = useState<boolean>(false);
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
+    const [connectionId, setConnectionId] = useState<string>('');
+    const [isHost, setIsHost] = useState<boolean>(false);
     const { toast } = useToast();
 
-    // Event handlers
-    const handleProgress = useCallback((progress: TransferProgress) => {
-        setProgress(progress);
-    }, []);
+    // Refs for WebRTC
+    const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+    const dataChannelRef = useRef<RTCDataChannel | null>(null);
+    const iceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
 
-    const handleError = useCallback((error: TransferError) => {
-        setError(error);
-        setTransferState('error');
-    }, []);
+    // Handle file selection
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+        }
+    };
 
-    const handleStateChange = useCallback((state: TransferState) => {
-        setTransferState(state);
-    }, []);
+    // Initialize as host (sender)
+    const initializeAsHost = async () => {
+        if (!selectedFile) return;
 
-    const handleFileReceived = useCallback((file: File) => {
-        setReceivedFile(file);
-        const url = URL.createObjectURL(file);
-        setFilePreviewUrl(url);
-        setTransferState('completed');
+        try {
+            setIsHost(true);
+            setIsUploading(true);
+            setStatus('initiating');
 
-        // Automatically trigger download
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+            // Create file metadata
+            const fileMetadata: FileMetadata = {
+                name: selectedFile.name,
+                size: selectedFile.size,
+                type: selectedFile.type,
+            };
 
-        toast({
-            title: 'File Received',
-            description: `${file.name} has been downloaded.`,
-            variant: 'success',
-        });
-    }, []);
+            // Initiate share session
+            const shareResponse = await initiateShare(fileMetadata);
+            setSessionId(shareResponse.sessionId);
+            setConnectionId(shareResponse.sessionId);
+            setShareLink(shareResponse.shareableLink);
 
-    const handlePeerConnected = useCallback(
-        (peerId: string) => {
-            // Keep peerId parameter even if unused for now
-            toast({
-                // toast is now stable
-                title: 'Peer Connected',
-                description: 'Connection established with peer', // Use peerId here if needed in the future
-                variant: 'success',
+            // Create WebRTC peer connection
+            const pc = createPeerConnection();
+            peerConnectionRef.current = pc;
+
+            // Set up ICE candidate handling
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    iceCandidatesRef.current.push(event.candidate);
+                }
+            };
+
+            // Create data channel
+            const dataChannel = pc.createDataChannel('fileTransfer', {
+                ordered: true,
             });
-        },
-        [toast],
-    ); // Add dependencies used inside
+            dataChannelRef.current = dataChannel;
 
-    // Initialize WebRTC client
+            // Set up data channel events
+            dataChannel.onopen = () => {
+                setStatus('connected');
+                setPeers(1);
+            };
+
+            // Create and set local description (offer)
+            const offer = await createOffer(pc);
+
+            // Update session with offer and ICE candidates
+            await updateTorrent(
+                shareResponse.sessionId,
+                shareResponse.torrentInfoHash,
+                JSON.stringify({
+                    type: 'webrtc',
+                    offer,
+                    iceCandidates: iceCandidatesRef.current,
+                }),
+            );
+
+            setStatus('waiting');
+        } catch (error) {
+            console.error('Host initialization error:', error);
+            setStatus('error');
+            setIsUploading(false);
+            toast({
+                title: 'Connection Failed',
+                description: 'There was an error initializing the connection.',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    // Initialize as guest (receiver)
+    const initializeAsGuest = async () => {
+        if (!connectionId) return;
+
+        try {
+            setIsHost(false);
+            setIsDownloading(true);
+            setStatus('initiating');
+
+            // Get session information
+            const sessionInfo = await getSessionInfo(connectionId);
+
+            // Parse WebRTC data
+            const webrtcData = JSON.parse(sessionInfo.magnetUri);
+
+            // Create WebRTC peer connection
+            const pc = createPeerConnection();
+            peerConnectionRef.current = pc;
+
+            // Set up data channel event
+            pc.ondatachannel = (event) => {
+                dataChannelRef.current = event.channel;
+
+                // Set up file receiving
+                receiveFile(
+                    event.channel,
+                    (metadata) => {
+                        setStatus('receiving');
+                        toast({
+                            title: 'Receiving File',
+                            description: `Receiving ${metadata.name} (${formatFileSize(metadata.size)})`,
+                        });
+                    },
+                    (progress) => {
+                        setProgress(progress);
+                    },
+                    (file) => {
+                        // Download the file
+                        const url = URL.createObjectURL(file);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+
+                        setStatus('completed');
+                        setIsDownloading(false);
+                        toast({
+                            title: 'Download Complete',
+                            description:
+                                'File has been successfully downloaded.',
+                        });
+                    },
+                );
+            };
+
+            // Set up ICE candidate handling
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    iceCandidatesRef.current.push(event.candidate);
+                }
+            };
+
+            // Set remote description (offer)
+            await pc.setRemoteDescription(
+                new RTCSessionDescription(webrtcData.offer),
+            );
+
+            // Add ICE candidates
+            for (const candidate of webrtcData.iceCandidates) {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+
+            // Create and set local description (answer)
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            // Update session with answer and ICE candidates
+            await updateTorrent(
+                sessionInfo.sessionId,
+                sessionInfo.torrentInfoHash,
+                JSON.stringify({
+                    type: 'webrtc',
+                    answer,
+                    iceCandidates: iceCandidatesRef.current,
+                }),
+            );
+
+            setStatus('connecting');
+        } catch (error) {
+            console.error('Guest initialization error:', error);
+            setStatus('error');
+            setIsDownloading(false);
+            toast({
+                title: 'Connection Failed',
+                description: 'There was an error connecting to the host.',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    // Check for answer from guest
     useEffect(() => {
-        webrtcClientRef.current = new WebRTCClient();
+        if (!isHost || status !== 'waiting') return;
 
-        const client = webrtcClientRef.current;
+        const checkForAnswer = async () => {
+            try {
+                const sessionInfo = await getSessionInfo(sessionId);
+                const webrtcData = JSON.parse(sessionInfo.magnetUri);
 
-        // Set up event listeners
-        client.onStateChange(handleStateChange);
-        client.onProgress(handleProgress);
-        client.onError(handleError);
-        client.onFileReceived(handleFileReceived);
+                if (webrtcData.type === 'webrtc' && webrtcData.answer) {
+                    // Set remote description (answer)
+                    await peerConnectionRef.current?.setRemoteDescription(
+                        new RTCSessionDescription(webrtcData.answer),
+                    );
 
-        // Cleanup function
-        return () => {
-            if (webrtcClientRef.current) {
-                webrtcClientRef.current.cancel();
+                    // Add ICE candidates
+                    for (const candidate of webrtcData.iceCandidates) {
+                        await peerConnectionRef.current?.addIceCandidate(
+                            new RTCIceCandidate(candidate),
+                        );
+                    }
+
+                    setStatus('connected');
+                }
+            } catch (error) {
+                console.error('Error checking for answer:', error);
             }
         };
-    }, [handleStateChange, handleProgress, handleError, handleFileReceived]);
 
-    // Event handlers
-    const handleChannelCreated = (channelId: string) => {
-        setChannelId(channelId);
-        setIsGeneratingLink(false);
-    };
+        const interval = setInterval(checkForAnswer, 2000);
+        return () => clearInterval(interval);
+    }, [isHost, status, sessionId]);
 
-    // UI event handlers
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = event.target.files;
-        if (files && files.length > 0) {
-            setFile(files[0]);
-
-            // Create preview URL for image files
-            if (files[0].type.startsWith('image/')) {
-                const url = URL.createObjectURL(files[0]);
-                setFilePreviewUrl(url);
-            } else {
-                setFilePreviewUrl(null);
-            }
-
-            toast({
-                title: 'File Selected',
-                description: `${files[0].name} (${formatFileSize(
-                    files[0].size,
-                )})`,
-            });
-        }
-    };
-
-    const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        setIsDragging(false);
-
-        const files = event.dataTransfer.files;
-        if (files && files.length > 0) {
-            setFile(files[0]);
-
-            // Create preview URL for image files
-            if (files[0].type.startsWith('image/')) {
-                const url = URL.createObjectURL(files[0]);
-                setFilePreviewUrl(url);
-            } else {
-                setFilePreviewUrl(null);
-            }
-
-            toast({
-                title: 'File Selected',
-                description: `${files[0].name} (${formatFileSize(
-                    files[0].size,
-                )})`,
-            });
-        }
-    };
-
-    const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
-        setIsDragging(false);
-    };
-
-    const handleSendFile = async () => {
-        if (!file || !webrtcClientRef.current) {
-            return;
-        }
-
-        try {
-            setIsGeneratingLink(true);
-
-            // Initiate file share with backend
-            const response = await apiService.initiateFileShare({
-                name: file.name,
-                size: file.size,
-                type: file.type,
-            });
-
-            // Store session info
-            setChannelId(response.sessionId);
-
-            // Initialize WebRTC with the received public key
-            await webrtcClientRef.current.initiateSend(
-                file,
-                response.publicKey,
-            );
-
-            toast({
-                title: 'Link Generated',
-                description:
-                    'Share this link with the recipient to start the transfer.',
-                variant: 'success',
-            });
-        } catch (error) {
-            setIsGeneratingLink(false);
-            console.error('Error initiating send:', error);
-            toast({
-                title: 'Connection Error',
-                description: 'Failed to create sharing link. Please try again.',
-                variant: 'destructive',
-            });
-        }
-    };
-
-    const handleJoinChannel = async () => {
-        if (!joinChannelId || !webrtcClientRef.current) {
-            return;
-        }
-
-        try {
-            setIsJoining(true);
-
-            // Extract just the channel ID for the API endpoint
-            const channelIdOnly =
-                joinChannelId.split('?channel=')[1] || joinChannelId;
-
-            // Get session info from backend
-            const sessionInfo = await apiService.getSessionInfo(channelIdOnly);
-            console.log('Received session info:', sessionInfo);
-
-            // Initialize WebRTC with the session info
-            await webrtcClientRef.current.initiateReceive(
-                sessionInfo.publicKey,
-                sessionInfo.fileMetadata,
-            );
-
-            // Update status in backend
-            await apiService.updateStatus(sessionInfo.sessionId, 'connected');
-
-            toast({
-                title: 'Connected',
-                description: 'Ready to receive the file.',
-                variant: 'success',
-            });
-        } catch (error) {
-            setIsJoining(false);
-            console.error('Error joining channel:', error);
-            toast({
-                title: 'Connection Error',
-                description:
-                    'Failed to join the channel. Please check the link and try again.',
-                variant: 'destructive',
-            });
-        }
-    };
-
-    const handlePauseResume = () => {
-        if (!webrtcClientRef.current) return;
-
-        if (transferState === 'transferring') {
-            webrtcClientRef.current.cancel();
-            setTransferState('idle');
-        } else if (transferState === 'idle') {
-            handleSendFile();
-        }
-    };
-
-    const handleCancel = () => {
-        if (!webrtcClientRef.current) return;
-
-        webrtcClientRef.current.cancel();
-        setFile(null);
-        setReceivedFile(null);
-        setChannelId('');
-        setJoinChannelId('');
-        setProgress(null);
-        setError(null);
-        setIsGeneratingLink(false);
-        setIsJoining(false);
-
-        // Clean up file preview URL
-        if (filePreviewUrl) {
-            URL.revokeObjectURL(filePreviewUrl);
-            setFilePreviewUrl(null);
-        }
-
-        toast({
-            title: 'Transfer Cancelled',
-            description: 'The file transfer has been cancelled.',
-        });
-    };
-
-    const handleCopyLink = () => {
-        if (!channelId) {
-            return;
-        }
-
-        // Extract just the channel ID for the API endpoint
-        const channelIdOnly = channelId.split('?channel=')[1] || channelId;
-        const url = `${window.location.origin}?channel=${channelIdOnly}`;
-
-        navigator.clipboard.writeText(url).then(() => {
-            toast({
-                title: 'Link Copied',
-                description: 'Sharing link copied to clipboard.',
-                variant: 'success',
-            });
-        });
-    };
-
-    const handleDownloadFile = () => {
-        if (!receivedFile) {
-            return;
-        }
-
-        const url = URL.createObjectURL(receivedFile);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = receivedFile.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        toast({
-            title: 'Download Started',
-            description: `Downloading ${receivedFile.name}`,
-            variant: 'success',
-        });
-    };
-
-    // Check for channel ID in URL
+    // Send file when connection is established
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const channelIdFromUrl = params.get('channel');
+        if (
+            !isHost ||
+            status !== 'connected' ||
+            !dataChannelRef.current ||
+            !selectedFile
+        )
+            return;
 
-        if (channelIdFromUrl) {
-            setJoinChannelId(channelIdFromUrl);
-            setActiveTab('receive');
+        const sendFileData = async () => {
+            try {
+                setStatus('sending');
+                await sendFile(
+                    dataChannelRef.current!,
+                    selectedFile,
+                    (progress) => {
+                        setProgress(progress);
+                    },
+                );
 
-            toast({
-                title: 'Sharing Link Detected',
-                description: 'Ready to receive a file from this link.',
-            });
-        }
-    }, [toast]);
+                setStatus('completed');
+                setIsUploading(false);
+                toast({
+                    title: 'Upload Complete',
+                    description: 'File has been successfully shared.',
+                });
+            } catch (error) {
+                console.error('Error sending file:', error);
+                setStatus('error');
+                setIsUploading(false);
+                toast({
+                    title: 'Upload Failed',
+                    description: 'There was an error sending the file.',
+                    variant: 'destructive',
+                });
+            }
+        };
+
+        sendFileData();
+    }, [isHost, status, selectedFile]);
 
     // Format file size
     const formatFileSize = (bytes: number): string => {
@@ -405,630 +317,62 @@ export default function FileTransfer() {
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
 
-        return (
-            Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) +
-            ' ' +
-            sizes[i]
-        );
-    };
-
-    // Format transfer speed
-    const formatSpeed = (bytesPerSecond: number): string => {
-        if (bytesPerSecond === 0) return '0 B/s';
-
-        const k = 1024;
-        const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-        const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k));
-
-        return (
-            Number.parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(2)) +
-            ' ' +
-            sizes[i]
-        );
-    };
-
-    // Format time (seconds to MM:SS)
-    const formatTime = (seconds: number): string => {
-        const minutes = Math.floor(seconds / 60);
-        const remainingSeconds = seconds % 60;
-        return `${minutes.toString().padStart(2, '0')}:${remainingSeconds
-            .toString()
-            .padStart(2, '0')}`;
-    };
-
-    // Get file type icon
-    const getFileTypeIcon = (file: File | null) => {
-        if (!file) return <FileIcon className="h-12 w-12" />;
-
-        const extension = file.name.split('.').pop()?.toLowerCase();
-
-        if (file.type.startsWith('image/')) {
-            return <ImageIcon className="h-12 w-12 text-blue-500" />;
-        } else if (file.type.startsWith('video/')) {
-            return <Film className="h-12 w-12 text-red-500" />;
-        } else if (file.type.startsWith('audio/')) {
-            return <Music className="h-12 w-12 text-purple-500" />;
-        } else if (file.type.startsWith('text/')) {
-            return <FileText className="h-12 w-12 text-yellow-500" />;
-        } else if (
-            extension === 'zip' ||
-            extension === 'rar' ||
-            extension === '7z' ||
-            extension === 'tar' ||
-            extension === 'gz'
-        ) {
-            return <Archive className="h-12 w-12 text-orange-500" />;
-        } else if (
-            extension === 'js' ||
-            extension === 'ts' ||
-            extension === 'html' ||
-            extension === 'css' ||
-            extension === 'json' ||
-            extension === 'py' ||
-            extension === 'java' ||
-            extension === 'php'
-        ) {
-            return <Code className="h-12 w-12 text-green-500" />;
-        }
-
-        return <File className="h-12 w-12 text-gray-500" />;
-    };
-
-    // Render transfer status
-    const renderTransferStatus = () => {
-        if (!progress) return null;
-
-        return (
-            <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                        {transferState === 'transferring' ? (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={handlePauseResume}
-                            >
-                                <Pause className="h-4 w-4" />
-                            </Button>
-                        ) : transferState === 'idle' ? (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={handlePauseResume}
-                            >
-                                <Play className="h-4 w-4" />
-                            </Button>
-                        ) : null}
-                        <span>
-                            {formatFileSize(progress.bytesTransferred)} of{' '}
-                            {formatFileSize(progress.totalBytes)}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        {progress.speed > 0 && (
-                            <span>{formatSpeed(progress.speed)}</span>
-                        )}
-                        {estimatedTimeRemaining !== null && (
-                            <span>
-                                {formatTime(estimatedTimeRemaining)} remaining
-                            </span>
-                        )}
-                    </div>
-                </div>
-                <Progress
-                    value={
-                        (progress.bytesTransferred / progress.totalBytes) * 100
-                    }
-                />
-            </div>
-        );
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
     return (
-        <Card className="border-opacity-50 mx-auto mt-8 w-full max-w-md bg-background/80 shadow-lg backdrop-blur-sm">
-            <CardHeader className="pb-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <CardTitle className="text-xl">
-                            Transfer Files
-                        </CardTitle>
-                        <CardDescription>
-                            Secure, encrypted peer-to-peer transfers
-                        </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Badge
-                                        variant="outline"
-                                        className="gap-1 py-1"
-                                    >
-                                        <Shield className="h-3 w-3" />
-                                        <span className="hidden sm:inline">
-                                            End-to-End Encrypted
-                                        </span>
-                                        <span className="sm:hidden">
-                                            Encrypted
-                                        </span>
-                                    </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>
-                                        All transfers are secured with AES-256
-                                        encryption
-                                    </p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
-                </div>
+        <Card className="mx-auto w-full max-w-md">
+            <CardHeader>
+                <CardTitle>File Transfer</CardTitle>
+                <CardDescription>
+                    Share files securely using P2P technology
+                </CardDescription>
             </CardHeader>
-            <CardContent className="pb-6">
-                <Tabs
-                    value={activeTab}
-                    onValueChange={setActiveTab}
-                    className="w-full"
-                >
-                    <TabsList className="mb-6 grid w-full grid-cols-2">
-                        <TabsTrigger
-                            value="send"
-                            className="flex items-center gap-1.5"
-                        >
-                            <Upload className="h-4 w-4" />
-                            <span>Send</span>
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="receive"
-                            className="flex items-center gap-1.5"
-                        >
-                            <Download className="h-4 w-4" />
-                            <span>Receive</span>
-                        </TabsTrigger>
-                    </TabsList>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="file">Select File</Label>
+                    <Input
+                        id="file"
+                        type="file"
+                        onChange={handleFileSelect}
+                        disabled={isUploading || isDownloading}
+                    />
+                </div>
 
-                    <TabsContent value="send" className="mt-0 space-y-4">
-                        <AnimatePresence mode="wait">
-                            {!file ? (
-                                <motion.div
-                                    key="dropzone"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.2 }}
-                                    className={cn(
-                                        'cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all sm:p-12',
-                                        isDragging
-                                            ? 'border-primary/70 bg-primary/5'
-                                            : 'hover:border-muted-foreground/30 hover:bg-muted/50 hover:shadow-md',
-                                    )}
-                                    onClick={() =>
-                                        fileInputRef.current?.click()
-                                    }
-                                    onDrop={handleFileDrop}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                >
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-                                    <div className="relative">
-                                        <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 opacity-70 blur-xl"></div>
-                                        <Upload className="relative mx-auto mb-4 h-12 w-12 text-primary" />
-                                    </div>
-                                    <p className="mb-2 text-base font-medium">
-                                        Drag and drop a file here, or click to
-                                        select
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Files are transferred directly to the
-                                        recipient
-                                    </p>
-                                    <div className="mt-6 flex items-center justify-center gap-2">
-                                        <Shield className="h-4 w-4 text-muted-foreground" />
-                                        <p className="text-xs text-muted-foreground">
-                                            End-to-end encrypted
-                                        </p>
-                                    </div>
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="fileSelected"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="space-y-4"
-                                >
-                                    <div className="rounded-lg border bg-muted/10 p-4 backdrop-blur-sm transition-all hover:shadow-md">
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex-shrink-0">
-                                                {filePreviewUrl ? (
-                                                    <Image
-                                                        src={filePreviewUrl}
-                                                        alt={file.name}
-                                                        width={48} // Provide width
-                                                        height={48} // Provide height
-                                                        className="h-12 w-12 rounded-md border object-cover"
-                                                    />
-                                                ) : (
-                                                    getFileTypeIcon(file)
-                                                )}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="truncate font-medium">
-                                                    {file.name}
-                                                </p>
-                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                    <span>
-                                                        {formatFileSize(
-                                                            file.size,
-                                                        )}
-                                                    </span>
-                                                    <span>•</span>
-                                                    <span>
-                                                        {file.type ||
-                                                            'Unknown type'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => {
-                                                    setFile(null);
-                                                    if (filePreviewUrl) {
-                                                        URL.revokeObjectURL(
-                                                            filePreviewUrl,
-                                                        );
-                                                        setFilePreviewUrl(null);
-                                                    }
-                                                }}
-                                                className="flex-shrink-0"
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
+                <div className="space-y-2">
+                    <Label htmlFor="connectionId">Connection ID</Label>
+                    <Input
+                        id="connectionId"
+                        placeholder="Enter connection ID to join"
+                        value={connectionId}
+                        onChange={(e) => setConnectionId(e.target.value)}
+                        disabled={isUploading || isDownloading}
+                    />
+                </div>
 
-                                    {transferState === 'idle' ? (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.1 }}
-                                        >
-                                            <Button
-                                                className="group relative w-full overflow-hidden"
-                                                onClick={handleSendFile}
-                                                disabled={isGeneratingLink}
-                                            >
-                                                <span className="group-hover:animate-shimmer absolute inset-0 h-full w-full bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0"></span>
-                                                {isGeneratingLink ? (
-                                                    <>
-                                                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                                        Creating Sharing Link...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Share2 className="mr-2 h-4 w-4" />
-                                                        Create Sharing Link
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </motion.div>
-                                    ) : channelId ? (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: 0.1 }}
-                                            className="space-y-4"
-                                        >
-                                            <div className="flex flex-col space-y-2">
-                                                <div className="flex items-center justify-between">
-                                                    <Label
-                                                        htmlFor="link"
-                                                        className="text-sm font-medium"
-                                                    >
-                                                        Sharing Link
-                                                    </Label>
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
-                                                            >
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-6 px-2"
-                                                                >
-                                                                    <Info className="mr-1 h-3 w-3" />
-                                                                    <span className="text-xs">
-                                                                        How to
-                                                                        share
-                                                                    </span>
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent className="max-w-xs">
-                                                                <p>
-                                                                    Share this
-                                                                    link with
-                                                                    the
-                                                                    recipient.
-                                                                    When they
-                                                                    open it, a
-                                                                    secure
-                                                                    connection
-                                                                    will be
-                                                                    established.
-                                                                </p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                </div>
-                                                <div className="flex space-x-2">
-                                                    <div className="relative flex-1">
-                                                        <Input
-                                                            id="link"
-                                                            value={`${window.location.origin}?channel=${channelId}`}
-                                                            readOnly
-                                                            className="pr-10"
-                                                        />
-                                                        <Link className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                                                    </div>
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
-                                                            >
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="icon"
-                                                                    onClick={
-                                                                        handleCopyLink
-                                                                    }
-                                                                    className="transition-colors hover:bg-primary/10"
-                                                                >
-                                                                    <Copy className="h-4 w-4" />
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                Copy to
-                                                                clipboard
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex flex-col items-center pt-2 pb-4">
-                                                <div className="mb-2 flex items-center gap-2">
-                                                    <QrCode className="h-4 w-4" />
-                                                    <span className="text-sm font-medium">
-                                                        QR Code
-                                                    </span>
-                                                </div>
-                                                <div className="rounded-xl bg-white p-3 shadow-sm">
-                                                    <QRCode
-                                                        value={`${window.location.origin}?channel=${channelId}`}
-                                                        size={180}
-                                                        // Use Next.js Image for logo if possible, or ensure placeholder is in public dir
-                                                        logoImage="/favicon.ico" // Example: using favicon
-                                                        logoWidth={40}
-                                                        logoHeight={40}
-                                                        logoPadding={5}
-                                                        removeQrCodeBehindLogo={
-                                                            true
-                                                        }
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                                                <Shield className="h-3 w-3" />
-                                                <span>
-                                                    Secure, end-to-end encrypted
-                                                    connection
-                                                </span>
-                                            </div>
-                                        </motion.div>
-                                    ) : null}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
-                        {renderTransferStatus()}
-                    </TabsContent>
-
-                    <TabsContent value="receive" className="mt-0 space-y-4">
-                        <AnimatePresence mode="wait">
-                            {transferState === 'idle' && !receivedFile ? ( // Added !receivedFile condition
-                                <motion.div
-                                    key="receiveIdle"
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="space-y-6"
-                                >
-                                    <div className="flex flex-col space-y-2">
-                                        <Label
-                                            htmlFor="channel-id"
-                                            className="text-sm font-medium"
-                                        >
-                                            Enter Sharing Link or Channel ID
-                                        </Label>
-                                        <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                                            <div className="relative flex-1">
-                                                <Input
-                                                    id="channel-id"
-                                                    value={joinChannelId}
-                                                    onChange={(e) =>
-                                                        setJoinChannelId(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    placeholder="https://safeshare.com?channel=abc123 or abc123"
-                                                    className="pr-10"
-                                                />
-                                                <Link className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
-                                            </div>
-                                            <Button
-                                                onClick={handleJoinChannel}
-                                                disabled={
-                                                    !joinChannelId || isJoining
-                                                }
-                                                className="group relative overflow-hidden"
-                                            >
-                                                <span className="group-hover:animate-shimmer absolute inset-0 h-full w-full bg-gradient-to-r from-primary/0 via-primary/30 to-primary/0"></span>
-                                                {isJoining ? (
-                                                    <>
-                                                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                                        Joining...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Download className="mr-2 h-4 w-4" />
-                                                        Connect
-                                                    </>
-                                                )}
-                                            </Button>
-                                        </div>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            Paste the sharing link or channel ID
-                                            provided by the sender
-                                        </p>
-                                    </div>
-
-                                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/5 p-6 transition-colors hover:bg-muted/10">
-                                        <div className="relative mb-4">
-                                            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/10 to-secondary/10 opacity-70 blur-xl"></div>
-                                            <QrCode className="relative h-12 w-12 text-primary" />
-                                        </div>
-                                        <p className="mb-1 text-sm font-medium">
-                                            Scan QR Code
-                                        </p>
-                                        <p className="text-center text-xs text-muted-foreground">
-                                            If the sender has generated a QR
-                                            code, you can scan it with your
-                                            device&apos;s camera
-                                        </p>
-                                        <Button
-                                            variant="link"
-                                            size="sm"
-                                            className="mt-2"
-                                        >
-                                            <ExternalLink className="mr-1 h-3 w-3" />
-                                            <span className="text-xs">
-                                                Open Camera
-                                            </span>
-                                        </Button>
-                                    </div>
-
-                                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                                        <Shield className="h-3 w-3" />
-                                        <span>
-                                            Files are transferred directly from
-                                            the sender to your browser
-                                        </span>
-                                    </div>
-                                </motion.div>
-                            ) : null}
-                        </AnimatePresence>
-
-                        {/* Render status OR received file info */}
-                        {transferState !== 'idle' || receivedFile
-                            ? renderTransferStatus()
-                            : null}
-
-                        {/* Display received file info if completed and file exists */}
-                        {transferState === 'completed' && receivedFile && (
-                            <motion.div
-                                key="fileReceived"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.2 }}
-                                className="mt-4 space-y-4"
-                            >
-                                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-                                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                    <AlertTitle>
-                                        File Received Successfully!
-                                    </AlertTitle>
-                                    <AlertDescription>
-                                        <div className="mt-4 space-y-4">
-                                            <div className="flex items-center gap-4 rounded-lg border bg-muted/10 p-4">
-                                                <div className="flex-shrink-0">
-                                                    {filePreviewUrl ? (
-                                                        <Image
-                                                            src={filePreviewUrl}
-                                                            alt={
-                                                                receivedFile.name
-                                                            }
-                                                            width={48}
-                                                            height={48}
-                                                            className="h-12 w-12 rounded-md border object-cover"
-                                                        />
-                                                    ) : (
-                                                        getFileTypeIcon(
-                                                            receivedFile,
-                                                        )
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="truncate font-medium">
-                                                        {receivedFile.name}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <span>
-                                                            {formatFileSize(
-                                                                receivedFile.size,
-                                                            )}
-                                                        </span>
-                                                        <span>•</span>
-                                                        <span>
-                                                            {receivedFile.type ||
-                                                                'Unknown type'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <Button
-                                                onClick={handleDownloadFile}
-                                                className="w-full"
-                                            >
-                                                <Download className="mr-2 h-4 w-4" />
-                                                Download File
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                onClick={handleCancel} // Reuse cancel to reset state
-                                                className="w-full"
-                                            >
-                                                Receive Another File
-                                            </Button>
-                                        </div>
-                                    </AlertDescription>
-                                </Alert>
-                            </motion.div>
-                        )}
-                    </TabsContent>
-                </Tabs>
+                {(isUploading || isDownloading) && (
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                            <span>Progress: {Math.round(progress)}%</span>
+                            <span>Status: {status}</span>
+                        </div>
+                        <Progress value={progress} />
+                    </div>
+                )}
             </CardContent>
-            <CardFooter className="flex flex-col justify-between gap-2 border-t px-6 py-4 text-xs text-muted-foreground sm:flex-row">
-                <div className="flex items-center gap-1">
-                    <Shield className="h-3 w-3" />
-                    <span>End-to-end encrypted</span>
-                </div>
-                <div className="flex items-center gap-1">
-                    <Server className="h-3 w-3" />
-                    <span>No server storage</span>
-                </div>
+            <CardFooter className="flex justify-between">
+                <Button
+                    onClick={initializeAsHost}
+                    disabled={!selectedFile || isUploading || isDownloading}
+                >
+                    {isUploading ? 'Uploading...' : 'Share File'}
+                </Button>
+                <Button
+                    onClick={initializeAsGuest}
+                    disabled={!connectionId || isUploading || isDownloading}
+                >
+                    {isDownloading ? 'Downloading...' : 'Join Session'}
+                </Button>
             </CardFooter>
         </Card>
     );
