@@ -350,6 +350,18 @@ export default function FileTransfer() {
                     />
                 </div>
 
+                {shareLink && (
+                    <div className="space-y-2">
+                        <Label htmlFor="shareLink">Share Link</Label>
+                        <Input
+                            id="shareLink"
+                            value={shareLink}
+                            readOnly
+                            className="bg-muted"
+                        />
+                    </div>
+                )}
+
                 {(isUploading || isDownloading) && (
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">

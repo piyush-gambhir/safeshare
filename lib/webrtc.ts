@@ -19,12 +19,8 @@ export const createPeerConnection = (): RTCPeerConnection => {
 export const createOffer = async (
     pc: RTCPeerConnection,
 ): Promise<RTCSessionDescriptionInit> => {
-    const dataChannel = pc.createDataChannel('fileTransfer', { ordered: true });
-    setupDataChannel(dataChannel);
-
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-
     return offer;
 };
 
@@ -34,14 +30,8 @@ export const createAnswer = async (
     offer: RTCSessionDescriptionInit,
 ): Promise<RTCSessionDescriptionInit> => {
     await pc.setRemoteDescription(new RTCSessionDescription(offer));
-
-    pc.ondatachannel = (event) => {
-        setupDataChannel(event.channel);
-    };
-
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-
     return answer;
 };
 
@@ -59,12 +49,6 @@ export const addIceCandidate = async (
     candidate: RTCIceCandidateInit,
 ): Promise<void> => {
     await pc.addIceCandidate(new RTCIceCandidate(candidate));
-};
-
-// Setup data channel for file transfer
-const setupDataChannel = (dataChannel: RTCDataChannel): void => {
-    // This is a placeholder - the actual implementation will be in the component
-    // that uses this utility
 };
 
 // Send a file through a data channel
@@ -146,7 +130,7 @@ export const receiveFile = (
                 const message = JSON.parse(event.data);
                 if (message.type === 'metadata') {
                     metadata = message.data;
-                    if (onMetadata) {
+                    if (onMetadata && metadata) {
                         onMetadata(metadata);
                     }
                 } else if (message.type === 'complete' && metadata) {
