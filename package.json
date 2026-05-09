@@ -1,0 +1,16 @@
+{
+  "name": "safeshare",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Decentralized peer-to-peer end-to-end encrypted file transfer over WebRTC.",
+  "scripts": {
+    "dev:web": "pnpm --filter ./apps/web dev",
+    "dev:electron": "pnpm --filter ./apps/electron dev",
+    "dev:backend-fastify": "pnpm --filter ./apps/backend-fastify dev",
+    "build:web": "pnpm --filter ./apps/web build",
+    "build:electron": "pnpm --filter ./apps/electron build",
+    "build:backend-fastify": "pnpm --filter ./apps/backend-fastify build"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "license": "MIT"
+}

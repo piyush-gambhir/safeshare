@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build outputs
+.next/
+dist/
+dist-electron/
+out/
+build/
+
+# env
+.env
+.env.local
+.env.*.local
+.env.deploy
+.env.deploy.*
+!.env.example
+!.env.deploy.example
+!.env.development
+!.env.production
+
+# misc
+.DS_Store
+*.log
+.turbo/
+coverage/
