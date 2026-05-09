@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeShare WebRTC Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        .card {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .progress-container {
+            width: 100%;
+            height: 20px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #2ecc71;
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.2s;
+        }
+        .status {
+            font-weight: 600;
+            margin: 10px 0;
+        }
+        .logs {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-y: auto;
+            height: 200px;
+            font-family: monospace;
+        }
+        .tab-container {
+            margin-bottom: 20px;
+        }
+        .tab {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #ecf0f1;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab.active {
+            background-color: #3498db;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>SafeShare WebRTC Test</h1>
+    
+    <div class="tab-container">
+        <div class="tab active" data-tab="sender">Sender</div>
+        <div class="tab" data-tab="receiver">Receiver</div>
+    </div>
+    
+    <div id="sender-tab" class="tab-content active">
+        <div class="card">
+            <h2>Send a File via WebRTC</h2>
+            <div class="form-group">
+                <label for="auth-token-sender">Auth Token:</label>
+                <input type="text" id="auth-token-sender" placeholder="Bearer token">
+            </div>
+            <div class="form-group">
+                <label for="transfer-id">Transfer ID:</label>
+                <input type="text" id="transfer-id" placeholder="UUID of an existing transfer">
+            </div>
+            <div class="form-group">
+                <label for="file-sender">File to Send:</label>
+                <input type="file" id="file-sender">
+            </div>
+            <button id="btn-create-room">Create Room</button>
+            <button id="btn-send-file" disabled>Send File</button>
+            
+            <div class="form-group">
+                <label>Room ID (share this with receiver):</label>
+                <input type="text" id="room-id-display" readonly>
+            </div>
+            
+            <div class="status" id="sender-status">Status: Disconnected</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="sender-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="receiver-tab" class="tab-content">
+        <div class="card">
+            <h2>Receive a File via WebRTC</h2>
+            <div class="form-group">
+                <label for="auth-token-receiver">Auth Token:</label>
+                <input type="text" id="auth-token-receiver" placeholder="Bearer token">
+            </div>
+            <div class="form-group">
+                <label for="room-id">Room ID:</label>
+                <input type="text" id="room-id" placeholder="Room ID from sender">
+            </div>
+            <button id="btn-join-room">Join Room</button>
+            
+            <div class="status" id="receiver-status">Status: Disconnected</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="receiver-progress"></div>
+            </div>
+            <div id="download-container"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Logs</h2>
+        <div class="logs" id="logs"></div>
+    </div>
+
+    <script src="/js/webrtc-client.js"></script>
+    <script>
+        // Tab switching functionality
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+            });
+        });
+
+        // Logging function
+        function log(message) {
+            const logsElement = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logsElement.innerHTML += `[${timestamp}] ${message}<br>`;
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+
+        // Global variables
+        let webrtcSender = null;
+        let webrtcReceiver = null;
+        const apiBase = window.location.origin; // Assuming API is on same domain
+
+        // Sender functionality
+        const btnCreateRoom = document.getElementById('btn-create-room');
+        const btnSendFile = document.getElementById('btn-send-file');
+        const transferIdInput = document.getElementById('transfer-id');
+        const roomIdDisplay = document.getElementById('room-id-display');
+        const authTokenSender = document.getElementById('auth-token-sender');
+        const senderStatus = document.getElementById('sender-status');
+        const senderProgress = document.getElementById('sender-progress');
+        const fileSender = document.getElementById('file-sender');
+
+        btnCreateRoom.addEventListener('click', async () => {
+            try {
+                const transferId = transferIdInput.value.trim();
+                const authToken = authTokenSender.value.trim();
+                
+                if (!transferId) {
+                    log('Error: Transfer ID is required');
+                    return;
+                }
+                
+                if (!authToken) {
+                    log('Error: Auth token is required');
+                    return;
+                }
+                
+                log('Creating WebRTC room...');
+                senderStatus.textContent = 'Status: Creating room...';
+                
+                // Initialize WebRTC sender
+                webrtcSender = new SafeShareWebRTC(apiBase, authToken);
+                
+                // Register callbacks
+                webrtcSender.onConnected(() => {
+                    log('WebRTC connection established (sender)');
+                    senderStatus.textContent = 'Status: Connected';
+                    btnSendFile.disabled = false;
+                });
+                
+                webrtcSender.onDisconnected(() => {
+                    log('WebRTC connection closed (sender)');
+                    senderStatus.textContent = 'Status: Disconnected';
+                    btnSendFile.disabled = true;
+                });
+                
+                webrtcSender.onProgress((progress) => {
+                    senderProgress.style.width = `${progress}%`;
+                    senderStatus.textContent = `Status: Sending (${progress.toFixed(1)}%)`;
+                });
+                
+                // Create room
+                const roomId = await webrtcSender.initSender(transferId);
+                roomIdDisplay.value = roomId;
+                log(`Room created with ID: ${roomId}`);
+                senderStatus.textContent = 'Status: Waiting for receiver...';
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                senderStatus.textContent = 'Status: Error';
+            }
+        });
+
+        btnSendFile.addEventListener('click', async () => {
+            try {
+                if (!webrtcSender || !webrtcSender.connected) {
+                    log('Error: WebRTC not connected');
+                    return;
+                }
+                
+                const file = fileSender.files[0];
+                if (!file) {
+                    log('Error: Please select a file');
+                    return;
+                }
+                
+                log(`Sending file: ${file.name} (${formatFileSize(file.size)})`);
+                senderStatus.textContent = 'Status: Sending...';
+                
+                await webrtcSender.sendFile(file);
+                log('File sent successfully');
+                senderStatus.textContent = 'Status: Completed';
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                senderStatus.textContent = 'Status: Error';
+            }
+        });
+
+        // Receiver functionality
+        const btnJoinRoom = document.getElementById('btn-join-room');
+        const roomIdInput = document.getElementById('room-id');
+        const authTokenReceiver = document.getElementById('auth-token-receiver');
+        const receiverStatus = document.getElementById('receiver-status');
+        const receiverProgress = document.getElementById('receiver-progress');
+        const downloadContainer = document.getElementById('download-container');
+
+        btnJoinRoom.addEventListener('click', async () => {
+            try {
+                const roomId = roomIdInput.value.trim();
+                const authToken = authTokenReceiver.value.trim();
+                
+                if (!roomId) {
+                    log('Error: Room ID is required');
+                    return;
+                }
+                
+                if (!authToken) {
+                    log('Error: Auth token is required');
+                    return;
+                }
+                
+                log('Joining WebRTC room...');
+                receiverStatus.textContent = 'Status: Joining room...';
+                
+                // Initialize WebRTC receiver
+                webrtcReceiver = new SafeShareWebRTC(apiBase, authToken);
+                
+                // Register callbacks
+                webrtcReceiver.onConnected(() => {
+                    log('WebRTC connection established (receiver)');
+                    receiverStatus.textContent = 'Status: Connected';
+                });
+                
+                webrtcReceiver.onDisconnected(() => {
+                    log('WebRTC connection closed (receiver)');
+                    receiverStatus.textContent = 'Status: Disconnected';
+                });
+                
+                webrtcReceiver.onProgress((progress) => {
+                    receiverProgress.style.width = `${progress}%`;
+                    receiverStatus.textContent = `Status: Receiving (${progress.toFixed(1)}%)`;
+                });
+                
+                webrtcReceiver.onFileReceived((file, fileName) => {
+                    log(`File received: ${fileName} (${formatFileSize(file.size)})`);
+                    receiverStatus.textContent = 'Status: Completed';
+                    
+                    // Create download link
+                    const downloadUrl = URL.createObjectURL(file);
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = downloadUrl;
+                    downloadLink.download = fileName;
+                    downloadLink.textContent = `Download ${fileName} (${formatFileSize(file.size)})`;
+                    downloadLink.className = 'download-link';
+                    downloadLink.style.display = 'block';
+                    downloadLink.style.marginTop = '15px';
+                    downloadLink.style.padding = '10px';
+                    downloadLink.style.backgroundColor = '#2ecc71';
+                    downloadLink.style.color = 'white';
+                    downloadLink.style.textAlign = 'center';
+                    downloadLink.style.textDecoration = 'none';
+                    downloadLink.style.borderRadius = '4px';
+                    
+                    // Clear previous downloads
+                    downloadContainer.innerHTML = '';
+                    downloadContainer.appendChild(downloadLink);
+                });
+                
+                // Join room
+                await webrtcReceiver.initReceiver(roomId);
+                log(`Joined room with ID: ${roomId}`);
+                receiverStatus.textContent = 'Status: Waiting for file...';
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                receiverStatus.textContent = 'Status: Error';
+            }
+        });
+
+        // Helper function to format file size
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' bytes';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            else if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            else return (bytes / 1073741824).toFixed(1) + ' GB';
+        }
+
+        log('WebRTC test page loaded');
+    </script>
+</body>
+</html>
