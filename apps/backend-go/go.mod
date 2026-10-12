@@ -1,6 +1,8 @@
 module github.com/piyush-gambhir/safeshare-service
 
-go 1.25.0
+go 1.27
+
+toolchain go1.27.2
 
 require (
 	github.com/gin-contrib/cors v1.7.5
