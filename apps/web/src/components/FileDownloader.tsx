@@ -23,12 +23,7 @@ declare module 'webtorrent' {
     interface Torrent {
         on(
             event:
-                | 'error'
-                | 'warning'
-                | 'peer'
-                | 'metadata'
-                | 'download'
-                | 'done',
+                'error' | 'warning' | 'peer' | 'metadata' | 'download' | 'done',
             callback: (arg?: any) => void,
         ): void;
     }
