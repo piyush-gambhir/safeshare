@@ -6,8 +6,6 @@ packages:
 sharedWorkspaceLockfile: false
 
 allowBuilds:
-  # Downloads the Electron binary used by `electron .` and vite-plugin-electron.
-  electron: true
   # Installs the platform binary that Vite builds with.
   esbuild: true
   # Downloads the native WebRTC binding WebTorrent uses in the Electron main process.
@@ -21,3 +19,5 @@ allowBuilds:
   utp-native: false
   # Its only script is a stray `npx only-allow pnpm` preinstall.
   ip-set: false
+  # Picks a 7-Zip binary for Squirrel.Windows builds, which this app does not use.
+  electron-winstaller: false
