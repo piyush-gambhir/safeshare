@@ -6,8 +6,6 @@ packages:
 sharedWorkspaceLockfile: false
 
 allowBuilds:
-  # Installs the platform binary that Vite builds with.
-  esbuild: true
   # Downloads the native WebRTC binding WebTorrent uses in the Electron main process.
   node-datachannel: true
   # These ship prebuilt binaries (or get them as optional deps), so their
