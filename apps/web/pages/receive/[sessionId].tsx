@@ -1,4 +1,4 @@
-import FileDownloader from '../../components/FileDownloader';
+import FileDownloader from '../../src/components/FileDownloader';
 
 export default function ReceivePage() {
     return (
