@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import WebTorrent from "webtorrent";
+import WebTorrent, { type Torrent } from "webtorrent";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -108,7 +108,7 @@ ipcMain.handle("initialize-webtorrent", async () => {
 
 ipcMain.handle("seed-file", async (_event, filePath: string) => {
     try {
-        const torrent = await new Promise<WebTorrent.Torrent>((resolve) => {
+        const torrent = await new Promise<Torrent>((resolve) => {
             client.seed(filePath, (torrent) => {
                 resolve(torrent);
             });
@@ -125,7 +125,7 @@ ipcMain.handle("seed-file", async (_event, filePath: string) => {
 
 ipcMain.handle("download-file", async (_event, magnetURI: string) => {
     try {
-        const torrent = await new Promise<WebTorrent.Torrent>((resolve) => {
+        const torrent = await new Promise<Torrent>((resolve) => {
             client.add(magnetURI, (torrent) => {
                 resolve(torrent);
             });

@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { type Variants, motion } from 'framer-motion';
 import { Server, Shield, Zap } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 
@@ -13,7 +13,7 @@ export default function Hero() {
         threshold: 0.1,
     });
 
-    const container = {
+    const container: Variants = {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
@@ -23,7 +23,7 @@ export default function Hero() {
         },
     };
 
-    const item = {
+    const item: Variants = {
         hidden: { opacity: 0, y: 20 },
         show: {
             opacity: 1,

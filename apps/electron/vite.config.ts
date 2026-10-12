@@ -15,7 +15,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         outDir: "dist-electron",
-                        rollupOptions: {
+                        rolldownOptions: {
                             external: ["electron", "webtorrent"],
                         },
                     },

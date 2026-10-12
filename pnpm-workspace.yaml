@@ -1,3 +1,21 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+
+# Each app keeps its own pnpm-lock.yaml (Dependabot updates them per directory).
+sharedWorkspaceLockfile: false
+
+allowBuilds:
+  # Downloads the native WebRTC binding WebTorrent uses in the Electron main process.
+  node-datachannel: true
+  # These ship prebuilt binaries (or get them as optional deps), so their
+  # build-from-source fallback is not needed.
+  bufferutil: false
+  sharp: false
+  unrs-resolver: false
+  utf-8-validate: false
+  utp-native: false
+  # Its only script is a stray `npx only-allow pnpm` preinstall.
+  ip-set: false
+  # Picks a 7-Zip binary for Squirrel.Windows builds, which this app does not use.
+  electron-winstaller: false
