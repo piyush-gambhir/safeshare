@@ -30,7 +30,7 @@
     "dotenv": "^16.6.1",
     "fastify": "^5.12.5",
     "fastify-zod": "^1.4.0",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "libsodium-wrappers": "^0.7.15",
     "parse-torrent": "^11.0.24",
     "pino-pretty": "^13.2.0",
