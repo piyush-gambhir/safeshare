@@ -31,6 +31,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # next build stopped running ESLint in Next 16, so lint runs as its own step.
+      - name: Lint Web App
+        run: pnpm --filter ./apps/web lint
+
       - name: Build Web App
         run: pnpm run build:web
 
