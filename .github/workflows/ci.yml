@@ -24,9 +24,9 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '24.22.1'
+          node-version: "24.22.1"
           cache: pnpm
-          cache-dependency-path: '**/pnpm-lock.yaml'
+          cache-dependency-path: "**/pnpm-lock.yaml"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -37,6 +37,15 @@ jobs:
 
       - name: Build Web App
         run: pnpm run build:web
+
+      - name: Lint Backend (Fastify)
+        run: pnpm --filter ./apps/backend-fastify lint
+
+      - name: Lint Electron App
+        run: pnpm --filter ./apps/electron lint
+
+      - name: Typecheck Electron App
+        run: pnpm --filter ./apps/electron exec tsc --noEmit
 
       - name: Build Backend (Fastify)
         run: pnpm run build:backend-fastify
