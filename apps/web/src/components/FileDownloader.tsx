@@ -18,17 +18,6 @@ interface SessionInfo {
     expiresAt: number;
 }
 
-// Extend WebTorrent types to include all event types
-declare module 'webtorrent' {
-    interface Torrent {
-        on(
-            event:
-                'error' | 'warning' | 'peer' | 'metadata' | 'download' | 'done',
-            callback: (arg?: any) => void,
-        ): void;
-    }
-}
-
 export default function FileDownloader() {
     const router = useRouter();
     const { sessionId } = router.query;
@@ -113,25 +102,15 @@ export default function FileDownloader() {
             });
 
             // Handle completion
-            torrent.on('done', () => {
+            torrent.on('done', async () => {
                 console.log('Download complete');
                 setStatus('completed');
                 setDownloadProgress(100);
 
                 // Get the file and create download link
                 const file = torrent.files[0];
-                file.getBlob((err, blob) => {
-                    if (err) {
-                        console.error('Error getting blob:', err);
-                        setError(err.message);
-                        return;
-                    }
-
-                    if (!blob) {
-                        setError('Failed to get file blob');
-                        return;
-                    }
-
+                try {
+                    const blob = await file.blob();
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -140,7 +119,14 @@ export default function FileDownloader() {
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                });
+                } catch (error) {
+                    console.error('Error getting blob:', error);
+                    setError(
+                        error instanceof Error
+                            ? error.message
+                            : 'Failed to get file blob',
+                    );
+                }
             });
 
             // Handle errors

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "./ui/button";
 import {
     Card,
@@ -11,12 +11,11 @@ import {
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Progress } from "./ui/progress";
-import { useToast } from "./ui/use-toast";
+import { useToast } from "../hooks/use-toast";
 import {
     initiateShare,
     getSessionInfo,
     updateTorrent,
-    updateStatus,
 } from "../lib/api";
 import { FileMetadata } from "../types/fileShare";
 
@@ -27,8 +26,7 @@ interface FileWithPath extends File {
 export default function FileTransfer() {
     const [selectedFile, setSelectedFile] = useState<FileWithPath | null>(null);
     const [shareLink, setShareLink] = useState<string>("");
-    const [sessionId, setSessionId] = useState<string>("");
-    const [progress, setProgress] = useState<number>(0);
+    const progress = 0;
     const [status, setStatus] = useState<string>("idle");
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [isDownloading, setIsDownloading] = useState<boolean>(false);
@@ -60,7 +58,6 @@ export default function FileTransfer() {
 
             // Initiate share session
             const shareResponse = await initiateShare(fileMetadata);
-            setSessionId(shareResponse.sessionId);
             setShareLink(shareResponse.shareableLink);
 
             // Initialize WebTorrent and seed the file
@@ -133,17 +130,6 @@ export default function FileTransfer() {
                 variant: "destructive",
             });
         }
-    };
-
-    // Format file size
-    const formatFileSize = (bytes: number): string => {
-        if (bytes === 0) return "0 Bytes";
-
-        const k = 1024;
-        const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
     };
 
     return (

@@ -70,7 +70,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
   server.get(
     "/status/:sessionId",
     {
-      websocket: true as any, // Type assertion to fix TypeScript error
+      websocket: true,
     },
     handleWebSocketConnection,
   );

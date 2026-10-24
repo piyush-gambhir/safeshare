@@ -2,10 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import crypto from "crypto";
 import sodium from "libsodium-wrappers";
 import { redis } from "../../server.js";
-import {
-  generateSessionId,
-  createTorrentInfoHash,
-} from "../../utils/identity.js";
+import { generateSessionId } from "../../utils/identity.js";
 import { generateInfoHash, createMagnetUri } from "../../utils/p2p.js";
 import { PeerSession } from "../../utils/types.js";
 import { FILE_EXPIRY_SECONDS, FRONTEND_URL } from "../../utils/constants.js";
@@ -24,7 +21,6 @@ export async function initiateShareHandler(
   request: FastifyRequest<{
     Body: InitiateShareInput;
   }>,
-  reply: FastifyReply,
 ): Promise<InitiateShareResponse> {
   await sodium.ready;
 
