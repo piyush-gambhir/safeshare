@@ -71,7 +71,7 @@ jobs:
         merge-multiple: true
         path: release
     - name: Check archives and write checksums
-      run: "python3 - <<'PYTHON'\nimport pathlib, zipfile, hashlib\nfiles = sorted(pathlib.Path('release').glob('*.zip'))\n\
+      run: "python3 - <<'PYTHON'\nimport pathlib, zipfile, hashlib\nfiles = sorted(pathlib.Path('release').rglob('*.zip'))\n\
         assert len(files) == 3\nfor p in files:\n    with zipfile.ZipFile(p) as a:\n        assert a.testzip() is None\n \
         \       assert any(n.endswith('app.asar') for n in a.namelist())\npathlib.Path('release/checksums.txt').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()\
         \ + '  ' + p.name + '\\n' for p in files))\nPYTHON"
@@ -94,4 +94,6 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         TAG: ${{ github.ref_name }}
-      run: gh release create "$TAG" release/*.zip release/checksums.txt --verify-tag --title "$TAG" --notes-file release-notes.txt
+      run: |
+        mapfile -d '' archives < <(find release -type f -name '*.zip' -print0)
+        gh release create "$TAG" "${archives[@]}" release/checksums.txt --verify-tag --title "$TAG" --notes-file release-notes.txt
