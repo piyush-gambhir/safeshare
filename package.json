@@ -1,6 +1,6 @@
 {
   "name": "safeshare",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Decentralized peer-to-peer end-to-end encrypted file transfer over WebRTC.",
   "scripts": {
