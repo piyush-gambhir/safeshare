@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { buildJsonSchemas } from "fastify-zod";
 
 // Input schemas
 const fileMetadataSchema = z.object({
@@ -67,16 +66,24 @@ export type SessionInfoResponse = z.infer<typeof sessionInfoResponseSchema>;
 export type UpdateStatusResponse = z.infer<typeof updateStatusResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 
-export const { schemas: fileShareSchemas, $ref } = buildJsonSchemas(
+const models = {
+  initiateShareInputSchema,
+  initiateShareResponseSchema,
+  updateTorrentInputSchema,
+  updateTorrentResponseSchema,
+  sessionInfoResponseSchema,
+  updateStatusInputSchema,
+  updateStatusResponseSchema,
+  errorResponseSchema,
+};
+
+export const fileShareSchemas = [
   {
-    initiateShareInputSchema,
-    initiateShareResponseSchema,
-    updateTorrentInputSchema,
-    updateTorrentResponseSchema,
-    sessionInfoResponseSchema,
-    updateStatusInputSchema,
-    updateStatusResponseSchema,
-    errorResponseSchema,
+    ...z.toJSONSchema(z.object(models), { target: "draft-7" }),
+    $id: "fileShareSchemas",
   },
-  { $id: "fileShareSchemas" },
-);
+];
+
+export const $ref = (key: keyof typeof models) => ({
+  $ref: `fileShareSchemas#/properties/${key}`,
+});

@@ -12,19 +12,11 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Progress } from "./ui/progress";
 import { useToast } from "../hooks/use-toast";
-import {
-    initiateShare,
-    getSessionInfo,
-    updateTorrent,
-} from "../lib/api";
+import { initiateShare, getSessionInfo, updateTorrent } from "../lib/api";
 import { FileMetadata } from "../types/fileShare";
 
-interface FileWithPath extends File {
-    path: string;
-}
-
 export default function FileTransfer() {
-    const [selectedFile, setSelectedFile] = useState<FileWithPath | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [shareLink, setShareLink] = useState<string>("");
     const progress = 0;
     const [status, setStatus] = useState<string>("idle");
@@ -35,7 +27,7 @@ export default function FileTransfer() {
 
     // Handle file selection
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0] as FileWithPath;
+        const file = event.target.files?.[0];
         if (file) {
             setSelectedFile(file);
         }
@@ -62,8 +54,11 @@ export default function FileTransfer() {
 
             // Initialize WebTorrent and seed the file
             const { initializeWebtorrent, seedFile } = window.electron;
-            await initializeWebtorrent();
-            const { magnetUri, infoHash } = await seedFile(selectedFile.path);
+            const initialized = await initializeWebtorrent();
+            if (!initialized.success) throw new Error(initialized.error);
+            const seeded = await seedFile(selectedFile);
+            if (!seeded.success) throw new Error(seeded.error);
+            const { magnetUri, infoHash } = seeded;
 
             // Update session with torrent info
             await updateTorrent({
@@ -102,16 +97,19 @@ export default function FileTransfer() {
             const sessionInfo = await getSessionInfo(connectionId);
 
             // Get downloads path
-            const downloadPath = await window.electron.getDownloadsPath();
+            const destination = await window.electron.getDownloadsPath();
+            if (!destination.success) throw new Error(destination.error);
+            const downloadPath = destination.path;
 
             // Start downloading the file
             setStatus("downloading");
             const { downloadFile } = window.electron;
             const result = await downloadFile(
                 sessionInfo.magnetUri,
-                downloadPath
+                downloadPath,
             );
 
+            if (!result.success) throw new Error(result.error);
             if (result.success) {
                 setStatus("completed");
                 setIsDownloading(false);
@@ -141,7 +139,7 @@ export default function FileTransfer() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-2 [&>input]:mt-2">
                     <Label htmlFor="file">Select File</Label>
                     <Input
                         id="file"
@@ -151,7 +149,7 @@ export default function FileTransfer() {
                     />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 [&>input]:mt-2">
                     <Label htmlFor="connectionId">Connection ID</Label>
                     <Input
                         id="connectionId"
@@ -163,7 +161,7 @@ export default function FileTransfer() {
                 </div>
 
                 {shareLink && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 [&>input]:mt-2">
                         <Label htmlFor="shareLink">Share Link</Label>
                         <Input
                             id="shareLink"
@@ -175,7 +173,7 @@ export default function FileTransfer() {
                 )}
 
                 {(isUploading || isDownloading) && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 [&>input]:mt-2">
                         <div className="flex justify-between text-sm">
                             <span>Status: {status}</span>
                         </div>

@@ -1,6 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@theme {
+    --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
 
 @layer base {
     :root {
@@ -69,6 +72,14 @@
 @layer base {
     * {
         @apply border-border;
+    }
+    /* Preserve the native file button after the Preflight reset. */
+    input[type="file"]::file-selector-button {
+        padding: 1px 6px;
+        color: #000;
+    }
+    button:not(:disabled), [role="button"]:not(:disabled) {
+        cursor: pointer;
     }
     body {
         @apply bg-background text-foreground;

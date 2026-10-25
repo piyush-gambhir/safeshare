@@ -5,21 +5,23 @@
   "main": "app.ts",
   "type": "module",
   "scripts": {
-    "build": "rimraf dist && node node_modules/typescript-compiler/bin/tsc",
+    "build": "rimraf dist && node node_modules/@typescript/native/bin/tsc",
     "prestart": "npm run build",
     "start": "node --env-file .env dist/src/app.js",
     "predev": "rimraf dist && npm run build",
-    "dev": "concurrently \"node node_modules/typescript-compiler/bin/tsc -w\" \"nodemon --env-file .env dist/src/app.js\"",
+    "dev": "concurrently \"node node_modules/@typescript/native/bin/tsc -w\" \"nodemon --env-file .env dist/src/app.js\"",
     "format": "prettier . --write",
     "lint": "eslint .",
-    "serve": "node dist/src/app.js"
+    "serve": "node dist/src/app.js",
+    "typecheck": "node node_modules/@typescript/native/bin/tsc --noEmit",
+    "typecheck:compat": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@12.11.2",
+  "packageManager": "pnpm@12.15.0",
   "engines": {
-    "node": ">=24.22.1 <25"
+    "node": ">=24.22.1 <25 || >=26.12.1 <27"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",
@@ -29,16 +31,15 @@
     "@fastify/websocket": "^11.3.4",
     "dotenv": "^18.0.9",
     "fastify": "^5.12.7",
-    "fastify-zod": "^1.4.0",
     "ioredis": "^6.0.0",
     "libsodium-wrappers": "^0.8.4",
     "parse-torrent": "^11.0.24",
     "pino-pretty": "^13.2.0",
     "simple-peer": "^9.11.1",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.5",
     "@types/parse-torrent": "^11.0.1",
     "@types/simple-peer": "^9.11.9",
     "@types/webtorrent": "^3.0.0",
@@ -47,8 +48,8 @@
     "nodemon": "^3.1.14",
     "prettier": "^3.9.10",
     "rimraf": "^6.1.3",
-    "typescript": "^6.0.3",
+    "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.0",
-    "typescript-compiler": "npm:typescript@7.0.2"
+    "@typescript/native": "npm:typescript@^7.0.2"
   }
 }
