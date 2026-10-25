@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import WebTorrent, { type Torrent } from "webtorrent";
+import WebTorrent from "webtorrent";
+import { seedFile, downloadFile } from "./transfers";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // │ │
 // │ ├─┬ dist-electron
 // │ │ ├── main.js
-// │ │ └── preload.js
+// │ │ └── preload.cjs
 // │
 process.env.APP_ROOT = path.join(__dirname, "..");
 
@@ -24,8 +25,22 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 
 let win: BrowserWindow | null;
 
-// Initialize WebTorrent client
-const client = new WebTorrent();
+// Tests connect manual loopback peers without public discovery.
+export const client = new WebTorrent(
+    process.env.NODE_ENV === "test"
+        ? {
+              dht: false,
+              tracker: false,
+              lsd: false,
+              utPex: false,
+              natUpnp: false,
+              natPmp: false,
+              utp: false,
+              webSeeds: false,
+          }
+        : {},
+);
+client.on("error", (error) => console.error("WebTorrent error:", error));
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require("electron-squirrel-startup")) {
@@ -37,9 +52,9 @@ function createWindow() {
         width: 1200,
         height: 800,
         webPreferences: {
-            preload: path.join(__dirname, "preload.js"),
-            nodeIntegration: true,
-            contextIsolation: false,
+            preload: path.join(__dirname, "preload.cjs"),
+            nodeIntegration: false,
+            contextIsolation: true,
         },
     });
 
@@ -47,7 +62,7 @@ function createWindow() {
     win.webContents.on("did-finish-load", () => {
         win?.webContents.send(
             "main-process-message",
-            new Date().toLocaleString()
+            new Date().toLocaleString(),
         );
     });
 
@@ -106,39 +121,15 @@ ipcMain.handle("initialize-webtorrent", async () => {
     }
 });
 
-ipcMain.handle("seed-file", async (_event, filePath: string) => {
-    try {
-        const torrent = await new Promise<Torrent>((resolve) => {
-            client.seed(filePath, (torrent) => {
-                resolve(torrent);
-            });
-        });
-        return { success: true, magnetURI: torrent.magnetURI };
-    } catch (error: unknown) {
-        console.error("Error seeding file:", error);
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-        };
-    }
-});
+ipcMain.handle("seed-file", (_event, filePath: string) =>
+    seedFile(client, filePath),
+);
 
-ipcMain.handle("download-file", async (_event, magnetURI: string) => {
-    try {
-        const torrent = await new Promise<Torrent>((resolve) => {
-            client.add(magnetURI, (torrent) => {
-                resolve(torrent);
-            });
-        });
-        return { success: true, torrent };
-    } catch (error: unknown) {
-        console.error("Error downloading file:", error);
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-        };
-    }
-});
+ipcMain.handle(
+    "download-file",
+    (_event, magnetUri: string, downloadPath: string) =>
+        downloadFile(client, magnetUri, downloadPath),
+);
 
 ipcMain.handle("get-downloads-path", async () => {
     try {

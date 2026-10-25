@@ -12,19 +12,22 @@ concurrency:
 
 jobs:
   build:
-    name: Build Web & Backend
+    name: Node ${{ matrix.node }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
+    strategy:
+      matrix:
+        node: ['24.22.1', '26.12.1']
     steps:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
         with:
-          version: 12.11.2
+          version: 12.15.0
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.22.1"
+          node-version: ${{ matrix.node }}
           cache: pnpm
           cache-dependency-path: "**/pnpm-lock.yaml"
 
@@ -35,17 +38,26 @@ jobs:
       - name: Lint Web App
         run: pnpm --filter ./apps/web lint
 
-      - name: Build Web App
-        run: pnpm run build:web
-
       - name: Lint Backend (Fastify)
         run: pnpm --filter ./apps/backend-fastify lint
 
       - name: Lint Electron App
         run: pnpm --filter ./apps/electron lint
 
-      - name: Typecheck Electron App
-        run: pnpm --filter ./apps/electron exec tsc --noEmit
+      - name: Typecheck applications
+        run: pnpm -r typecheck
+
+      - name: Compiler API compatibility
+        run: pnpm -r typecheck:compat
+
+      - name: Test Electron transfer contracts
+        run: pnpm --filter ./apps/electron test
+
+      - name: Build Web App
+        run: pnpm run build:web
+
+      - name: Bundle Electron App
+        run: pnpm --filter ./apps/electron exec vite build
 
       - name: Build Backend (Fastify)
         run: pnpm run build:backend-fastify

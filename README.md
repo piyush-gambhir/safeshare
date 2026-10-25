@@ -38,3 +38,7 @@ Each app has its own README and `.env.example` describing its config.
 ## License
 
 MIT
+
+## Toolchain upgrade review
+
+Use Node 26.12.1 and pnpm 12.15.0 for development. Node 24.22.1 hosting compatibility is checked in CI. See [the upgrade review](docs/UPGRADE_REVIEW.md) for explicit compiler commands, verification evidence, remaining advisory, and desktop release limits.
