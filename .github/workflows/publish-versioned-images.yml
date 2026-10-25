@@ -26,10 +26,10 @@ jobs:
       matrix:
         include:
         - image: safeshare-backend
-          dockerfile: apps/backend-go/Dockerfile
+          dockerfile: Dockerfile
           context: apps/backend-go
         - image: safeshare-migrations
-          dockerfile: apps/backend-go/Dockerfile.migration
+          dockerfile: Dockerfile.migration
           context: apps/backend-go
     uses: docker/github-builder/.github/workflows/build.yml@cbc9d42f8c89a55623392aadd03600965b80e963
     permissions:

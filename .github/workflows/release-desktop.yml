@@ -56,6 +56,9 @@ jobs:
         path: apps/electron/release/**/*.zip
         if-no-files-found: error
         retention-days: 7
+    defaults:
+      run:
+        shell: bash
   release:
     needs: build
     runs-on: ubuntu-24.04
