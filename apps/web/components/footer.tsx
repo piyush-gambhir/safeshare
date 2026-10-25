@@ -1,5 +1,7 @@
-import { Github, Heart, Shield, Twitter } from 'lucide-react';
+import { Heart, Shield } from 'lucide-react';
 import Link from 'next/link';
+
+import { Github, Twitter } from './brand-icons';
 
 export default function Footer() {
     return (

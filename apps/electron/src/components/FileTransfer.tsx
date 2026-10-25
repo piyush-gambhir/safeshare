@@ -139,7 +139,7 @@ export default function FileTransfer() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="space-y-2">
+                <div className="space-y-2 [&>input]:mt-2">
                     <Label htmlFor="file">Select File</Label>
                     <Input
                         id="file"
@@ -149,7 +149,7 @@ export default function FileTransfer() {
                     />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 [&>input]:mt-2">
                     <Label htmlFor="connectionId">Connection ID</Label>
                     <Input
                         id="connectionId"
@@ -161,7 +161,7 @@ export default function FileTransfer() {
                 </div>
 
                 {shareLink && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 [&>input]:mt-2">
                         <Label htmlFor="shareLink">Share Link</Label>
                         <Input
                             id="shareLink"
@@ -173,7 +173,7 @@ export default function FileTransfer() {
                 )}
 
                 {(isUploading || isDownloading) && (
-                    <div className="space-y-2">
+                    <div className="space-y-2 [&>input]:mt-2">
                         <div className="flex justify-between text-sm">
                             <span>Status: {status}</span>
                         </div>

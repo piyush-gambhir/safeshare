@@ -30,21 +30,23 @@ Full and production audits report zero advisories for the Fastify app. Both audi
 
 [GHSA-2p57-rm9w-gvfp](https://github.com/advisories/GHSA-2p57-rm9w-gvfp) concerns `isPublic` address classification. Inspection of installed tracker code found its only `ip` call in `lib/server/parse-udp.js`, using `toString`, with no `isPublic` or `isPrivate` calls. The tracker's browser map excludes its server entry. This reduces the identified advisory's reachable attack path in the current clients; it does not establish general SSRF protection or remove the dependency advisory. Reassess when upstream publishes a replacement or changes these paths.
 
-Bounded overrides update vulnerable `fast-uri`, `ip-address`, static-serving, selector-parser, and Undici dependencies. Rebuilt Electron bundles and the actual packaged application passed after the selector-parser/Undici updates. External dependency audits do not cover libraries embedded in Electron itself.
+Bounded overrides update vulnerable `fast-uri`, `ip-address`, static-serving and Undici dependencies. Rebuilt Electron bundles and the actual packaged application passed after the selector-parser/Undici updates. External dependency audits do not cover libraries embedded in Electron itself.
 
 Intentional holds:
 
 - Web ESLint 9: the current Next ESLint plugins do not support ESLint 10.
 - TypeScript 6: retained as the compiler API, with version 7 checked separately.
-- Web Lucide 0.487: existing GitHub/Twitter brand exports were removed in the current Lucide major.
-- Electron Tailwind 3.4.19: the existing Tailwind 3/PostCSS configuration requires a separate Tailwind 4 stylesheet migration.
 - Web panels 4.14.8: retains the existing release-age policy. Version 4.15.0 was published at 2026-10-24T21:32:32.360Z, with 24-hour eligibility at 2026-10-25T21:32:32.360Z. No new release-age exception was added.
 
-The legacy unused `crypto` npm package remains deprecated. This upgrade does not certify the application's existing encryption design, full IPC exposure, or end-to-end transfer implementation.
+The unused deprecated npm `crypto` stub was removed. Node built-in crypto and crypto-js semantics were not changed. Web Lucide now uses 1.61.0; the original GitHub and Twitter SVG nodes are retained locally with their license. Browser verification checks their exact paths, viewBox, fill, and stroke attributes.
+
+Electron now uses Tailwind 4.3.3 and its PostCSS plugin, retaining the existing theme configuration. Shadow/outline utilities, field spacing, fonts, native file-button appearance, and enabled-button cursors preserve the prior UI. The redundant Electron Autoprefixer dependency and the unused selector-parser override were removed with the Tailwind 3 tree. Actual before/after packaged UI screenshots are pixel-identical for the default, keyboard-focus, and selected-file states at 2400 by 1536 pixels. Computed geometry, fonts, and colors match. V4 changes zero-opacity shadow serialization and moves spacing margins between siblings without changing the rendered result. The existing unused `.dark` CSS variables are now retained rather than purged: manually injecting that class activates the existing dark palette, while the app still has no dark-mode control. These additional comparisons do not repeat the unchanged loopback transfer check.
+
+This upgrade does not certify the application's existing encryption design, full IPC exposure, or public-network transfer implementation.
 
 ## Evidence and release readiness
 
-Ignored local artifacts are under `build/upgrade-evidence`: `checks.json`, numbered runtime check logs, per-app full/production audits, peer/outdated reports, frozen installation log, API/browser results, Electron package log, actual packaged runtime results, and `electron-transfer-e2e-results.json` for the full local transfer. The unsigned application is retained locally in `electron-release`. These artifacts support local review and are not portable CI evidence.
+Ignored local artifacts are under `build/upgrade-evidence`: `checks.json`, numbered runtime check logs, per-app full/production audits, peer/outdated reports, frozen installation log, API/browser results, Electron package log, actual packaged runtime results, and `electron-transfer-e2e-results.json` for the full local transfer. The final unsigned application is retained locally in `electron-release-tailwind4`; `electron-release` retains the earlier package for the visual comparison. These artifacts support local review and are not portable CI evidence.
 
 The only GitHub workflow is CI on pushes and pull requests to `main`; no publishing or deployment workflow was introduced or invoked. Desktop identity and icon remain template defaults. The repaired transfer workflow has been verified only on loopback. Template application identity, signing, cross-platform packages, and public-network behavior still require release validation. No signed release, store submission, deployment, or production service write occurred. No container configuration was changed.
 
