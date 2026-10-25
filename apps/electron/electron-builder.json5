@@ -1,9 +1,9 @@
-// @see - https://www.electron.build/configuration/configuration
+// Electron release packaging.
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.piyushgambhir.safeshare",
   "asar": true,
-  "productName": "YourAppName",
+  "productName": "SafeShare",
   "directories": {
     "output": "release/${version}"
   },
@@ -15,7 +15,8 @@
     "target": [
       "dmg"
     ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "identity": null
   },
   "win": {
     "target": [
@@ -26,7 +27,7 @@
         ]
       }
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -38,6 +39,6 @@
     "target": [
       "AppImage"
     ],
-    "artifactName": "${productName}-Linux-${version}.${ext}"
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }

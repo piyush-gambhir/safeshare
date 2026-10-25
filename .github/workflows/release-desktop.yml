@@ -1,0 +1,94 @@
+name: Release desktop packages
+'on':
+  push:
+    tags:
+    - v*
+  workflow_dispatch: null
+permissions:
+  contents: read
+jobs:
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+        - os: macos-15
+          platform: mac
+          arch: arm64
+        - os: windows-latest
+          platform: win
+          arch: x64
+        - os: ubuntu-24.04
+          platform: linux
+          arch: x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7.0.1
+      with:
+        persist-credentials: false
+    - uses: pnpm/action-setup@v6
+      with:
+        version: 12.15.0
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 26.12.1
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+    - name: Verify release version
+      env:
+        TAG: ${{ github.ref_name }}
+      run: test "v$(node -p "require('./apps/electron/package.json').version")" = "$TAG"
+    - run: pnpm --filter safeshare-electron typecheck
+    - run: pnpm --filter safeshare-electron test
+    - run: pnpm --filter safeshare-electron exec vite build
+    - name: Package unsigned desktop archive
+      env:
+        TARGET_PLATFORM: ${{ matrix.platform }}
+        TARGET_ARCH: ${{ matrix.arch }}
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      run: pnpm --filter safeshare-electron exec electron-builder --publish never --"$TARGET_PLATFORM" zip --"$TARGET_ARCH"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+        path: apps/electron/release/**/*.zip
+        if-no-files-found: error
+        retention-days: 7
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: desktop-*
+        merge-multiple: true
+        path: release
+    - name: Check archives and write checksums
+      run: "python3 - <<'PYTHON'\nimport pathlib, zipfile, hashlib\nfiles = sorted(pathlib.Path('release').glob('*.zip'))\n\
+        assert len(files) == 3\nfor p in files:\n    with zipfile.ZipFile(p) as a:\n        assert a.testzip() is None\n \
+        \       assert any(n.endswith('app.asar') for n in a.namelist())\npathlib.Path('release/checksums.txt').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()\
+        \ + '  ' + p.name + '\\n' for p in files))\nPYTHON"
+    - name: Write release notes
+      env:
+        NOTES: 'Versioned SafeShare source, unsigned portable desktop archives for macOS arm64, Windows x64 and Linux x64,
+          and versioned GHCR backend images.
+
+
+          Desktop archives are unsigned and are not notarized. Source and the previous packaged macOS transfer flow were verified;
+          this publication does not claim Windows/Linux GUI, internet/NAT or public-network transfer verification. The documented
+          unpatched ip dependency advisory remains. Configure runtime services using the repository README.
+
+
+          Made by gpt-6 in Codex
+
+          '
+      run: printf '%s' "$NOTES" > release-notes.txt
+    - name: Publish release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.ref_name }}
+      run: gh release create "$TAG" release/*.zip release/checksums.txt --verify-tag --title "$TAG" --notes-file release-notes.txt
