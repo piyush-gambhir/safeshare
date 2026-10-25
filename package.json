@@ -11,9 +11,9 @@
     "build:electron": "pnpm --filter ./apps/electron build",
     "build:backend-fastify": "pnpm --filter ./apps/backend-fastify build"
   },
-  "packageManager": "pnpm@12.11.2",
+  "packageManager": "pnpm@12.15.0",
   "engines": {
-    "node": ">=24.22.1 <25"
+    "node": ">=24.22.1 <25 || >=26.12.1 <27"
   },
   "license": "MIT"
 }

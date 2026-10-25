@@ -33,3 +33,9 @@ minimumReleaseAgeExclude:
   - "@next/swc-linux-x64-musl@16.4.3"
   - "@next/swc-win32-arm64-msvc@16.4.3"
   - "@next/swc-win32-x64-msvc@16.4.3"
+
+overrides:
+  "@fastify/static@<10.1.2": 10.1.2
+  "fast-uri@>=3.0.0 <3.1.9": 3.1.9
+  "fast-uri@>=4.0.0 <4.2.3": 4.2.3
+  "ip-address@<10.7.4": 10.7.4
