@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  bittorrent-tracker@11.2.3>ip: npm:@webpod/ip@0.6.1
   undici@>=6.5.0 <6.29.1: 6.29.1
   undici@>=7.0.0 <7.30.1: 7.30.1
   '@fastify/static@<10.1.2': 10.1.2
