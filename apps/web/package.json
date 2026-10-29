@@ -14,7 +14,7 @@
     "bundle:export": "next analyze export"
   },
   "engines": {
-    "node": ">=24.22.1 <25 || >=26.12.1 <27"
+    "node": "26.x"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "^1.4.0",
