@@ -87,7 +87,7 @@
     "prettier-plugin-organize-attributes": "^1.0.0",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.3",
+    "typescript": "~7.0.2",
     "@typescript/native": "npm:typescript@^7.0.2"
   },
   "lint-staged": {
