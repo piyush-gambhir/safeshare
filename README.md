@@ -6,12 +6,12 @@ This monorepo holds every surface of the project — two interchangeable signali
 
 ## Apps
 
-| Path | What | Stack |
-|---|---|---|
-| [`apps/web`](apps/web) | Web client | Next.js 15, shadcn/ui, WebTorrent |
-| [`apps/electron`](apps/electron) | Desktop client | Electron, React, Vite |
-| [`apps/backend-go`](apps/backend-go) | Production signaling backend | Go, Gin, sqlc, Postgres, Redis, RabbitMQ |
-| [`apps/backend-fastify`](apps/backend-fastify) | Reference signaling backend | Fastify, Redis |
+| Path                                           | What                         | Stack                                    |
+| ---------------------------------------------- | ---------------------------- | ---------------------------------------- |
+| [`apps/web`](apps/web)                         | Web client                   | Next.js 16.4.3, shadcn/ui, WebTorrent    |
+| [`apps/electron`](apps/electron)               | Desktop client               | Electron, React, Vite                    |
+| [`apps/backend-go`](apps/backend-go)           | Production signaling backend | Go, Gin, sqlc, Postgres, Redis, RabbitMQ |
+| [`apps/backend-fastify`](apps/backend-fastify) | Reference signaling backend  | Fastify, Redis                           |
 
 ## Quickstart
 
@@ -41,4 +41,4 @@ MIT
 
 ## Toolchain upgrade review
 
-Use Node 26.12.1 and pnpm 12.15.0 for development. Node 24.22.1 hosting compatibility is checked in CI. See [the upgrade review](docs/UPGRADE_REVIEW.md) for explicit compiler commands, verification evidence, remaining advisory, and desktop release limits.
+Use Node 26.13.0 and pnpm 12.15.0 for development. CI uses the same Node 26.13.0 pin. See [the upgrade review](docs/UPGRADE_REVIEW.md) for explicit compiler commands, verification evidence, remaining advisory, and desktop release limits.
