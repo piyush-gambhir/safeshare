@@ -22,6 +22,7 @@ allowBuilds:
   # Picks a 7-Zip binary for Squirrel.Windows builds, which this app does not use.
   electron-winstaller: false
 minimumReleaseAgeExclude:
+  - follow-redirects@1.16.2
   - next@16.4.3
   - eslint-config-next@16.4.3
   - "@next/env@16.4.3"
@@ -37,6 +38,7 @@ minimumReleaseAgeExclude:
   - "@next/swc-win32-x64-msvc@16.4.3"
 
 overrides:
+  "follow-redirects@>=1.16.0 <=1.16.1": 1.16.2
   # The maintained fork fixes CVE-2024-29415 and preserves the tracker IP API.
   "bittorrent-tracker@11.2.3>ip": "npm:@webpod/ip@0.6.1"
   "undici@>=6.5.0 <6.29.1": 6.29.1
