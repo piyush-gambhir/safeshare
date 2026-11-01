@@ -1,0 +1,468 @@
+{
+  "date": "2026-10-29",
+  "repository": "piyush-gambhir/safeshare",
+  "base": "main",
+  "base_sha": "a5126eaf70a7079ff0446dee641ec4e5093c93e6",
+  "mode": "audit",
+  "publication_blocker": null,
+  "apps": [
+    {
+      "path": "apps/web",
+      "declared_next": "16.4.3",
+      "installed_next": "16.4.3",
+      "snapshot": "audit-20261029-baseline",
+      "graph_sha256": "9d54090c10b59647b7bbe3f2b86b239e91f22e68fd0029e392ade390d6ceeafe",
+      "error": null,
+      "analysis": {
+        "meta": {
+          "type": "meta",
+          "schema_version": 1,
+          "snapshot_name": "audit-20261029-baseline",
+          "module_index_hash": "1ef2937bad712066",
+          "route_count": 6,
+          "selected_routes": 6
+        },
+        "record_counts": {
+          "meta": 1,
+          "module": 2745,
+          "route": 6,
+          "output": 1654,
+          "part": 9085,
+          "group": 76
+        },
+        "metric": "Sum of attributed compressed bytes for JavaScript outputs with [client-fs] provenance; includes deferred outputs and is not measured transfer or initial-load size.",
+        "unique_client_js_compressed_attribution": 567667,
+        "route_stats": [
+          {
+            "route": "/",
+            "client_js_compressed_attribution": 486246,
+            "bootstrap_js_compressed_attribution": 164484,
+            "client_js_files": 15,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/_not-found",
+            "client_js_compressed_attribution": 477872,
+            "bootstrap_js_compressed_attribution": 164484,
+            "client_js_files": 14,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/about",
+            "client_js_compressed_attribution": 477872,
+            "bootstrap_js_compressed_attribution": 164484,
+            "client_js_files": 14,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/how-it-works",
+            "client_js_compressed_attribution": 477872,
+            "bootstrap_js_compressed_attribution": 164484,
+            "client_js_files": 14,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/receive/[sessionId]",
+            "client_js_compressed_attribution": 219210,
+            "bootstrap_js_compressed_attribution": 216274,
+            "client_js_files": 8,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          },
+          {
+            "route": "/favicon.ico",
+            "client_js_compressed_attribution": 137789,
+            "bootstrap_js_compressed_attribution": 0,
+            "client_js_files": 6,
+            "entries_coverage": "exact",
+            "groups_coverage": "exact"
+          }
+        ],
+        "top_sources": [
+          {
+            "source": "node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.production.js",
+            "compressed_attribution": 63932,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/react-dom/cjs/react-dom-client.production.js",
+            "compressed_attribution": 63809,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/about",
+              "/favicon.ico",
+              "/how-it-works",
+              "/receive/[sessionId]"
+            ]
+          },
+          {
+            "source": "node_modules/next/dist/build/polyfills/polyfill-nomodule.js",
+            "compressed_attribution": 39434,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/webtorrent/lib/torrent.js",
+            "compressed_attribution": 8696,
+            "routes": ["/receive/[sessionId]"]
+          },
+          {
+            "source": "node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+            "compressed_attribution": 8419,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/next/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.production.js",
+            "compressed_attribution": 7773,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/next/dist/shared/lib/router/router.js",
+            "compressed_attribution": 7609,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/about",
+              "/favicon.ico",
+              "/how-it-works",
+              "/receive/[sessionId]"
+            ]
+          },
+          {
+            "source": "node_modules/motion-dom/dist/es/projection/node/create-projection-node.mjs",
+            "compressed_attribution": 6702,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/next/dist/client/components/segment-cache/cache.js",
+            "compressed_attribution": 6394,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/next/dist/lib/constants.js",
+            "compressed_attribution": 4598,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/about",
+              "/favicon.ico",
+              "/how-it-works",
+              "/receive/[sessionId]"
+            ]
+          },
+          {
+            "source": "node_modules/streamx/index.js",
+            "compressed_attribution": 4405,
+            "routes": ["/receive/[sessionId]"]
+          },
+          {
+            "source": "node_modules/@radix-ui/react-menu/dist/index.mjs",
+            "compressed_attribution": 4283,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/@thaunknown/simple-peer/lite.js",
+            "compressed_attribution": 4127,
+            "routes": ["/receive/[sessionId]"]
+          },
+          {
+            "source": "node_modules/bittorrent-protocol/index.js",
+            "compressed_attribution": 4101,
+            "routes": ["/receive/[sessionId]"]
+          },
+          {
+            "source": "node_modules/next/dist/client/components/render-tree.js",
+            "compressed_attribution": 3998,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/next/dist/client/components/segment-cache/scheduler.js",
+            "compressed_attribution": 3969,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/@radix-ui/react-toast/dist/index.mjs",
+            "compressed_attribution": 3952,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/motion-dom/dist/es/animation/waapi/transforms/TransformAnimation.mjs",
+            "compressed_attribution": 3566,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          },
+          {
+            "source": "node_modules/next/dist/client/index.js",
+            "compressed_attribution": 3386,
+            "routes": [
+              "/",
+              "/_not-found",
+              "/about",
+              "/favicon.ico",
+              "/how-it-works",
+              "/receive/[sessionId]"
+            ]
+          },
+          {
+            "source": "node_modules/@floating-ui/core/dist/floating-ui.core.mjs",
+            "compressed_attribution": 3144,
+            "routes": ["/", "/_not-found", "/about", "/how-it-works"]
+          }
+        ],
+        "top_packages": [
+          ["next", 274641],
+          ["react-dom", 65332],
+          ["motion-dom", 55156],
+          ["webtorrent", 21110],
+          ["(application)", 17558],
+          ["framer-motion", 13056],
+          ["tailwind-merge", 8419],
+          ["streamx", 4739],
+          ["@radix-ui/react-menu", 4283],
+          ["@thaunknown/simple-peer", 4127],
+          ["bittorrent-protocol", 4101],
+          ["@radix-ui/react-toast", 3952],
+          ["lucide-react", 3907],
+          ["b4a", 3722],
+          ["bittorrent-tracker", 3719]
+        ],
+        "duplicate_browser_versions": {},
+        "graph": {
+          "emitted_members": 373,
+          "sync_edges": 894,
+          "async_edges": 2,
+          "communities": 28,
+          "parameters": "NetworkX Louvain, resolution=1, weight=1 per distinct directed edge/kind before symmetrization, seed=0; seed=1 stability comparison.",
+          "stable_partition_across_seeds": false,
+          "ranked_communities": [
+            {
+              "community": 3,
+              "modules": 99,
+              "unambiguous_compressed_attribution": 107371,
+              "largest_packages": [
+                ["react-dom", 65332],
+                ["next", 61126],
+                ["react", 3256],
+                ["scheduler", 1499]
+              ]
+            },
+            {
+              "community": 12,
+              "modules": 43,
+              "unambiguous_compressed_attribution": 84330,
+              "largest_packages": [["next", 95621]]
+            },
+            {
+              "community": 2,
+              "modules": 53,
+              "unambiguous_compressed_attribution": 43000,
+              "largest_packages": [["next", 53311]]
+            },
+            {
+              "community": 7,
+              "modules": 69,
+              "unambiguous_compressed_attribution": 28759,
+              "largest_packages": [
+                ["next", 21621],
+                ["(application)", 4734],
+                ["next-themes", 1441],
+                ["@radix-ui/react-slot", 1230]
+              ]
+            },
+            {
+              "community": 10,
+              "modules": 32,
+              "unambiguous_compressed_attribution": 18354,
+              "largest_packages": [
+                ["streamx", 4739],
+                ["b4a", 3722],
+                ["next", 2147],
+                ["speed-limiter", 1490]
+              ]
+            },
+            {
+              "community": 26,
+              "modules": 22,
+              "unambiguous_compressed_attribution": 7392,
+              "largest_packages": [["next", 15615]]
+            },
+            {
+              "community": 16,
+              "modules": 3,
+              "unambiguous_compressed_attribution": 3404,
+              "largest_packages": [["next", 3404]]
+            },
+            {
+              "community": 5,
+              "modules": 3,
+              "unambiguous_compressed_attribution": 3374,
+              "largest_packages": [["mime", 3374]]
+            }
+          ],
+          "unmapped_or_ambiguous_compressed_attribution": 255744
+        },
+        "candidates": [
+          {
+            "package": "motion-dom",
+            "unique_compressed_attribution": 55156,
+            "route": "/",
+            "roots": [
+              "[next]/entry/page-loader.ts { PAGE => \"[project]/apps/web/node_modules/next/app.js [client] (ecmascript)\" } [client] (ecmascript)",
+              "[project]/apps/web/components/file-transfer.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/header.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/hero.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/theme-provider.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/ui/toaster.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/lucide-react/dist/esm/Icon.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/app-dir/link.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/app-next-turbopack.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/builtin/global-error.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/client-page.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/client-segment.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/http-access-fallback/error-boundary.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/layout-router.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/render-from-template-context.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/next-turbopack.js [client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/lib/framework/boundary-components.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/lib/metadata/generate/icon-mark.js [app-client] (ecmascript)"
+            ],
+            "targets": [
+              "[project]/apps/web/node_modules/motion-dom/dist/es/utils/is-html-element.mjs [app-client] (ecmascript)"
+            ],
+            "missing_roots": 0,
+            "status": "provisional; render optionality and browser timing are unverified",
+            "cut": [],
+            "cut_status": "No synchronous root-to-target path in the known emitted subgraph; inspect async or render-dependent triggers."
+          },
+          {
+            "package": "webtorrent",
+            "unique_compressed_attribution": 21110,
+            "route": "/receive/[sessionId]",
+            "roots": [
+              "[next]/entry/page-loader.ts { PAGE => \"[project]/apps/web/node_modules/next/app.js [client] (ecmascript)\" } [client] (ecmascript)",
+              "[next]/entry/page-loader.ts { PAGE => \"[project]/apps/web/pages/receive/[sessionId].tsx [client] (ecmascript)\" } [client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/next-turbopack.js [client] (ecmascript)"
+            ],
+            "targets": [
+              "[project]/apps/web/node_modules/webtorrent/package.json.[json].cjs [client] (ecmascript)",
+              "[project]/apps/web/node_modules/webtorrent/version.cjs [client] (ecmascript)"
+            ],
+            "missing_roots": 0,
+            "status": "provisional; render optionality and browser timing are unverified",
+            "cut": [],
+            "cut_status": "No synchronous root-to-target path in the known emitted subgraph; inspect async or render-dependent triggers."
+          },
+          {
+            "package": "framer-motion",
+            "unique_compressed_attribution": 13056,
+            "route": "/",
+            "roots": [
+              "[next]/entry/page-loader.ts { PAGE => \"[project]/apps/web/node_modules/next/app.js [client] (ecmascript)\" } [client] (ecmascript)",
+              "[project]/apps/web/components/file-transfer.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/header.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/hero.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/theme-provider.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/components/ui/toaster.tsx [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/lucide-react/dist/esm/Icon.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/app-dir/link.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/app-next-turbopack.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/builtin/global-error.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/client-page.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/client-segment.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/http-access-fallback/error-boundary.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/layout-router.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/components/render-from-template-context.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/client/next-turbopack.js [client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/lib/framework/boundary-components.js [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/next/dist/lib/metadata/generate/icon-mark.js [app-client] (ecmascript)"
+            ],
+            "targets": [
+              "[project]/apps/web/node_modules/framer-motion/dist/es/components/AnimatePresence/use-presence.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/context/LayoutGroupContext.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/context/LazyContext.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/context/MotionConfigContext.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/context/MotionContext/index.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/context/PresenceContext.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/gestures/drag/index.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/motion/features/drag.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/render/components/create-proxy.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/render/components/motion/proxy.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/render/dom/create-visual-element.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/render/html/use-html-visual-state.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/utils/use-constant.mjs [app-client] (ecmascript)",
+              "[project]/apps/web/node_modules/framer-motion/dist/es/utils/use-isomorphic-effect.mjs [app-client] (ecmascript)"
+            ],
+            "missing_roots": 0,
+            "status": "provisional; render optionality and browser timing are unverified",
+            "cut": [],
+            "cut_capacity": 3678,
+            "cut_status": "No editable cut with bootstrap, client-reference roots, layouts and dependency internals protected."
+          }
+        ],
+        "client_dependency_scan": [
+          {
+            "source": "node_modules/next/dist/server/request-meta.js",
+            "emitted_identities": [
+              "[project]/apps/web/node_modules/next/dist/server/request-meta.js [client] (ecmascript)"
+            ],
+            "routes": [
+              "/",
+              "/_not-found",
+              "/about",
+              "/favicon.ico",
+              "/how-it-works",
+              "/receive/[sessionId]"
+            ],
+            "compressed_attribution": 299,
+            "disposition": "unverified",
+            "reason": "Ownership and surviving implementation need manual inspection; naming and module membership do not establish a leak.",
+            "server_action_source": false
+          }
+        ],
+        "possible_server_only_leaks": [],
+        "suppressed_matches": [],
+        "coverage": {
+          "unsupported_client_js_outputs": [
+            "[client-fs]/_next/static/chunks/1_95p7wg_z25j.js",
+            "[client-fs]/_next/static/chunks/1ff9shcnihxqg.js"
+          ],
+          "unknown_route_entries": [],
+          "unknown_route_groups": [],
+          "groups_without_joined_trigger": 0,
+          "sync_dependencies_absent_from_emitted_subgraph": 45,
+          "attribution_conflicts": 0,
+          "action_like_identities_requiring_source_mapping": 2,
+          "limits": [
+            "All minimum cuts are provisional; optionality, module side effects and actual mount/preload timing have not been behavior-tested.",
+            "Source-to-output attribution is distinct from exact module identity; ambiguous community bytes are excluded from community ranking.",
+            "No production browser requests, cold-navigation timing, interaction timing, Web Vitals or emitted implementation contents were inspected.",
+            "Potential Server Action stubs and ownership matches remain unverified until source-to-reference mapping and emitted contents are inspected."
+          ]
+        }
+      }
+    }
+  ],
+  "verification": [
+    {
+      "app": "apps/web",
+      "command": "pnpm run typecheck",
+      "exit_code": 0,
+      "seconds": 0.9
+    },
+    {
+      "app": "apps/web",
+      "command": "pnpm run lint",
+      "exit_code": 0,
+      "seconds": 2.5
+    },
+    {
+      "app": "(repository)",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "seconds": 0.0
+    }
+  ]
+}

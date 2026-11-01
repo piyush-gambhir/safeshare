@@ -25,3 +25,6 @@ build/
 *.log
 .turbo/
 coverage/
+
+# Local bundle graph exports
+/.bundle-analysis/

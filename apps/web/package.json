@@ -9,10 +9,12 @@
     "lint": "eslint .",
     "prepare": "husky",
     "typecheck": "next typegen && node node_modules/@typescript/native/bin/tsc --noEmit",
-    "typecheck:compat": "node node_modules/typescript/bin/tsc --noEmit"
+    "typecheck:compat": "node node_modules/typescript/bin/tsc --noEmit",
+    "bundle:analyze": "next analyze --output",
+    "bundle:export": "next analyze export"
   },
   "engines": {
-    "node": ">=24.22.1 <25 || >=26.12.1 <27"
+    "node": "26.x"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "^1.4.0",
