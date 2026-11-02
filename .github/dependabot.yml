@@ -28,8 +28,9 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
   - package-ecosystem: npm
+    # No root "/" entry: the root has no dependencies, and with
+    # sharedWorkspaceLockfile: false it cannot update the per-app lockfiles.
     directories:
-      - "/"
       - "/apps/web"
       - "/apps/electron"
       - "/apps/backend-fastify"
