@@ -1,12 +1,13 @@
 import { FastifyInstance } from "fastify";
 import {
   initiateShareHandler,
+  signalHandler,
   updateTorrentHandler,
   getSessionInfoHandler,
   updateStatusHandler,
   handleWebSocketConnection,
 } from "./fileShare.controller.js";
-import { $ref } from "./fileShare.schema.js";
+import { $ref, SESSION_ID_PATTERN } from "./fileShare.schema.js";
 
 export async function fileShareRoutes(server: FastifyInstance) {
   // Route to initiate file sharing
@@ -16,7 +17,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
       schema: {
         body: $ref("initiateShareInputSchema"),
         response: {
-          201: $ref("initiateShareResponseSchema"),
+          200: $ref("initiateShareResponseSchema"),
           500: $ref("errorResponseSchema"),
         },
         tags: ["File Sharing"],
@@ -26,14 +27,32 @@ export async function fileShareRoutes(server: FastifyInstance) {
     initiateShareHandler,
   );
 
-  // Route to update torrent info after client creates the WebTorrent
+  // Route for the web client to store its WebRTC offer or answer (SDP)
+  server.post(
+    "/signal",
+    {
+      schema: {
+        body: $ref("signalInputSchema"),
+        response: {
+          200: $ref("successResponseSchema"),
+          404: $ref("errorResponseSchema"),
+          409: $ref("errorResponseSchema"),
+        },
+        tags: ["File Sharing"],
+        description: "Store the WebRTC offer or answer for a session",
+      },
+    },
+    signalHandler,
+  );
+
+  // Route for the desktop client to store its WebTorrent magnet URI
   server.post(
     "/update-torrent",
     {
       schema: {
         body: $ref("updateTorrentInputSchema"),
         response: {
-          200: $ref("updateTorrentResponseSchema"),
+          200: $ref("successResponseSchema"),
           404: $ref("errorResponseSchema"),
         },
         tags: ["File Sharing"],
@@ -51,7 +70,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
         params: {
           type: "object",
           properties: {
-            sessionId: { type: "string" },
+            sessionId: { type: "string", pattern: SESSION_ID_PATTERN },
           },
           required: ["sessionId"],
         },
@@ -82,7 +101,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
       schema: {
         body: $ref("updateStatusInputSchema"),
         response: {
-          200: $ref("updateStatusResponseSchema"),
+          200: $ref("successResponseSchema"),
           404: $ref("errorResponseSchema"),
         },
         tags: ["File Sharing"],

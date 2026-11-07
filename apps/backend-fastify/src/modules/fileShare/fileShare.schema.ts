@@ -1,24 +1,32 @@
 import { z } from "zod";
 
-// Input schemas
-const fileMetadataSchema = z.object({
-  name: z.string(),
-  size: z.number(),
-  type: z.string(),
-});
+// Generous upper bound for a non-trickled SDP blob with all ICE candidates.
+const MAX_SDP_LENGTH = 64 * 1024;
 
-const initiateShareInputSchema = z.object({
-  fileMetadata: fileMetadataSchema,
-});
+// Session IDs are 16 random bytes in hex. Rejecting anything else keeps
+// request input from addressing other Redis keys.
+export const SESSION_ID_PATTERN = "^[0-9a-f]{32}$";
+const sessionIdSchema = z.string().regex(new RegExp(SESSION_ID_PATTERN));
+
+// Input schemas
+// No file metadata: the web client sends file name, size and type only inside
+// the end-to-end encrypted data channel.
+const initiateShareInputSchema = z.object({});
 
 const updateTorrentInputSchema = z.object({
-  sessionId: z.string(),
+  sessionId: sessionIdSchema,
   torrentInfoHash: z.string(),
   magnetUri: z.string(),
 });
 
+const signalInputSchema = z.object({
+  sessionId: sessionIdSchema,
+  type: z.enum(["offer", "answer"]),
+  sdp: z.string().min(1).max(MAX_SDP_LENGTH),
+});
+
 const updateStatusInputSchema = z.object({
-  sessionId: z.string(),
+  sessionId: sessionIdSchema,
   status: z.enum(["initiated", "ready", "connected", "completed", "error"]),
   peers: z.number().optional(),
   progress: z.number().optional(),
@@ -27,28 +35,22 @@ const updateStatusInputSchema = z.object({
 // Response schemas
 const initiateShareResponseSchema = z.object({
   sessionId: z.string(),
-  publicKey: z.string(),
-  torrentInfoHash: z.string(),
   shareableLink: z.string(),
   expiresAt: z.number(),
 });
 
-const updateTorrentResponseSchema = z.object({
+const successResponseSchema = z.object({
   success: z.boolean(),
 });
 
 const sessionInfoResponseSchema = z.object({
   sessionId: z.string(),
-  publicKey: z.string(),
-  torrentInfoHash: z.string(),
-  magnetUri: z.string().optional(),
-  fileMetadata: fileMetadataSchema,
   status: z.string(),
+  offer: z.string().optional(),
+  answer: z.string().optional(),
+  torrentInfoHash: z.string().optional(),
+  magnetUri: z.string().optional(),
   expiresAt: z.number(),
-});
-
-const updateStatusResponseSchema = z.object({
-  success: z.boolean(),
 });
 
 const errorResponseSchema = z.object({
@@ -58,22 +60,22 @@ const errorResponseSchema = z.object({
 // Export schemas and types
 export type InitiateShareInput = z.infer<typeof initiateShareInputSchema>;
 export type UpdateTorrentInput = z.infer<typeof updateTorrentInputSchema>;
+export type SignalInput = z.infer<typeof signalInputSchema>;
 export type UpdateStatusInput = z.infer<typeof updateStatusInputSchema>;
 
 export type InitiateShareResponse = z.infer<typeof initiateShareResponseSchema>;
-export type UpdateTorrentResponse = z.infer<typeof updateTorrentResponseSchema>;
+export type SuccessResponse = z.infer<typeof successResponseSchema>;
 export type SessionInfoResponse = z.infer<typeof sessionInfoResponseSchema>;
-export type UpdateStatusResponse = z.infer<typeof updateStatusResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 
 const models = {
   initiateShareInputSchema,
   initiateShareResponseSchema,
   updateTorrentInputSchema,
-  updateTorrentResponseSchema,
+  signalInputSchema,
+  successResponseSchema,
   sessionInfoResponseSchema,
   updateStatusInputSchema,
-  updateStatusResponseSchema,
   errorResponseSchema,
 };
 

@@ -1,160 +1,197 @@
-// WebRTC utility functions for P2P file sharing
+// WebRTC plumbing: peer connection setup, non-trickle ICE, and sending or
+// receiving an end-to-end encrypted file over a data channel.
+import {
+    CHUNK_SIZE,
+    type FileMetadata,
+    TransferDecryptor,
+    TransferEncryptor,
+    TransferError,
+} from '@/lib/transfer-crypto';
 
-// Create a new RTCPeerConnection
-export const createPeerConnection = (): RTCPeerConnection => {
-    const configuration: RTCConfiguration = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-        ],
+export const DATA_CHANNEL_LABEL = 'safeshare';
+
+const ICE_SERVERS: RTCIceServer[] = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+];
+const ICE_GATHERING_TIMEOUT_MS = 5000;
+
+// Sending pauses above HIGH_WATER buffered bytes and resumes below LOW_WATER,
+// well under the browsers' data-channel send-buffer limits.
+const HIGH_WATER = 4 * 1024 * 1024;
+const LOW_WATER = 1024 * 1024;
+
+export function createPeerConnection(): RTCPeerConnection {
+    return new RTCPeerConnection({ iceServers: ICE_SERVERS });
+}
+
+// The signaling API stores one SDP per side (no trickle ICE), so wait until the
+// local description includes the gathered candidates. After the timeout, go
+// ahead with the candidates found so far.
+export function waitForIceGathering(
+    pc: RTCPeerConnection,
+    timeoutMs = ICE_GATHERING_TIMEOUT_MS,
+): Promise<void> {
+    if (pc.iceGatheringState === 'complete') return Promise.resolve();
+    return new Promise((resolve) => {
+        const finish = () => {
+            clearTimeout(timer);
+            pc.removeEventListener('icegatheringstatechange', onChange);
+            resolve();
+        };
+        const onChange = () => {
+            if (pc.iceGatheringState === 'complete') finish();
+        };
+        const timer = setTimeout(finish, timeoutMs);
+        pc.addEventListener('icegatheringstatechange', onChange);
+    });
+}
+
+function closedError(): TransferError {
+    return new TransferError('The connection closed during the transfer.');
+}
+
+function waitForBuffer(channel: RTCDataChannel, threshold: number): Promise<void> {
+    // A closed channel can keep a nonzero bufferedAmount and fires no more events.
+    if (channel.readyState !== 'open') return Promise.reject(closedError());
+    if (channel.bufferedAmount <= threshold) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const cleanup = () => {
+            channel.removeEventListener('bufferedamountlow', onLow);
+            channel.removeEventListener('close', onClose);
+        };
+        const onLow = () => {
+            if (channel.bufferedAmount > threshold) return;
+            cleanup();
+            resolve();
+        };
+        const onClose = () => {
+            cleanup();
+            reject(closedError());
+        };
+        channel.addEventListener('bufferedamountlow', onLow);
+        channel.addEventListener('close', onClose);
+    });
+}
+
+// Sends metadata, every chunk and the end message, all encrypted, then waits
+// until the channel's buffer has drained to the network.
+export async function sendEncryptedFile(
+    channel: RTCDataChannel,
+    file: File,
+    key: CryptoKey,
+    transferId: string,
+    onProgress: (sentBytes: number) => void,
+): Promise<void> {
+    const encryptor = new TransferEncryptor(key, transferId);
+    channel.bufferedAmountLowThreshold = LOW_WATER;
+
+    const send = async (message: ArrayBuffer) => {
+        if (channel.bufferedAmount > HIGH_WATER) {
+            await waitForBuffer(channel, LOW_WATER);
+        }
+        if (channel.readyState !== 'open') throw closedError();
+        channel.send(message);
     };
 
-    return new RTCPeerConnection(configuration);
-};
+    await send(
+        await encryptor.metadata({ name: file.name, size: file.size, type: file.type }),
+    );
 
-// Create an offer for a peer connection
-export const createOffer = async (
-    pc: RTCPeerConnection,
-): Promise<RTCSessionDescriptionInit> => {
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    return offer;
-};
+    let sent = 0;
+    while (sent < file.size) {
+        const chunk = new Uint8Array(
+            await file.slice(sent, sent + CHUNK_SIZE).arrayBuffer(),
+        );
+        if (chunk.byteLength === 0) {
+            throw new TransferError('The file changed while it was being sent.');
+        }
+        await send(await encryptor.chunk(chunk));
+        sent += chunk.byteLength;
+        onProgress(sent);
+    }
 
-// Create an answer for a peer connection
-export const createAnswer = async (
-    pc: RTCPeerConnection,
-    offer: RTCSessionDescriptionInit,
-): Promise<RTCSessionDescriptionInit> => {
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    return answer;
-};
+    await send(await encryptor.end());
+    channel.bufferedAmountLowThreshold = 0;
+    await waitForBuffer(channel, 0);
+}
 
-// Set remote description (for the offerer)
-export const setRemoteDescription = async (
-    pc: RTCPeerConnection,
-    answer: RTCSessionDescriptionInit,
-): Promise<void> => {
-    await pc.setRemoteDescription(new RTCSessionDescription(answer));
-};
+export interface ReceiveHandlers {
+    onMetadata: (metadata: FileMetadata) => void;
+    onProgress: (receivedBytes: number) => void;
+    onComplete: (file: Blob, metadata: FileMetadata) => void;
+    onError: (error: Error) => void;
+}
 
-// Add ICE candidate
-export const addIceCandidate = async (
-    pc: RTCPeerConnection,
-    candidate: RTCIceCandidateInit,
-): Promise<void> => {
-    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-};
+// Decrypts messages as they arrive. A decryption failure, an unexpected
+// message, or the channel closing before the authenticated end message aborts
+// the transfer and drops everything received. The returned function cancels
+// the transfer silently, for example when the peer connection fails.
+export function receiveEncryptedFile(
+    channel: RTCDataChannel,
+    key: CryptoKey,
+    transferId: string,
+    handlers: ReceiveHandlers,
+): () => void {
+    const decryptor = new TransferDecryptor(key, transferId);
+    let parts: ArrayBuffer[] = [];
+    let received = 0;
+    let finished = false;
+    let pending: Promise<void> = Promise.resolve();
 
-// Send a file through a data channel
-export const sendFile = async (
-    dataChannel: RTCDataChannel,
-    file: File,
-    onProgress?: (progress: number) => void,
-): Promise<void> => {
-    return new Promise((resolve, reject) => {
-        if (dataChannel.readyState !== 'open') {
-            reject(new Error('Data channel is not open'));
+    const fail = (error: unknown) => {
+        if (finished) return;
+        finished = true;
+        parts = [];
+        channel.close();
+        handlers.onError(
+            error instanceof Error ? error : new TransferError('The transfer failed.'),
+        );
+    };
+
+    channel.binaryType = 'arraybuffer';
+    channel.onmessage = (event: MessageEvent) => {
+        if (finished) return;
+        if (!(event.data instanceof ArrayBuffer)) {
+            fail(new TransferError('Received an unexpected message.'));
             return;
         }
-
-        // Send file metadata first
-        const metadata = {
-            name: file.name,
-            size: file.size,
-            type: file.type,
-        };
-
-        dataChannel.send(JSON.stringify({ type: 'metadata', data: metadata }));
-
-        // Read the file in chunks
-        const chunkSize = 16384; // 16KB chunks
-        const reader = new FileReader();
-        let offset = 0;
-
-        reader.onload = (e) => {
-            if (e.target?.result) {
-                dataChannel.send(e.target.result as ArrayBuffer);
-                offset += (e.target.result as ArrayBuffer).byteLength;
-
-                if (onProgress) {
-                    onProgress((offset / file.size) * 100);
-                }
-
-                if (offset < file.size) {
-                    readNextChunk();
-                } else {
-                    dataChannel.send(JSON.stringify({ type: 'complete' }));
-                    resolve();
-                }
+        pending = decryptor.open(event.data).then((result) => {
+            if (finished) return;
+            if (result.kind === 'metadata') {
+                handlers.onMetadata(result.metadata);
+            } else if (result.kind === 'chunk') {
+                parts.push(result.data);
+                received += result.data.byteLength;
+                handlers.onProgress(received);
+            } else {
+                finished = true;
+                const metadata = decryptor.metadata!;
+                handlers.onComplete(
+                    new Blob(parts, { type: blobType(metadata.type) }),
+                    metadata,
+                );
+                parts = [];
             }
-        };
-
-        reader.onerror = () => {
-            reject(new Error('Error reading file'));
-        };
-
-        const readNextChunk = () => {
-            const slice = file.slice(offset, offset + chunkSize);
-            reader.readAsArrayBuffer(slice);
-        };
-
-        readNextChunk();
-    });
-};
-
-// Receive a file through a data channel
-export const receiveFile = (
-    dataChannel: RTCDataChannel,
-    onMetadata?: (metadata: {
-        name: string;
-        size: number;
-        type: string;
-    }) => void,
-    onProgress?: (progress: number) => void,
-    onComplete?: (file: File) => void,
-): void => {
-    let metadata: { name: string; size: number; type: string } | null = null;
-    const chunks: ArrayBuffer[] = [];
-    let receivedSize = 0;
-
-    dataChannel.onmessage = (event) => {
-        // Check if the message is metadata
-        if (typeof event.data === 'string') {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.type === 'metadata') {
-                    metadata = message.data;
-                    if (onMetadata && metadata) {
-                        onMetadata(metadata);
-                    }
-                } else if (message.type === 'complete' && metadata) {
-                    // Combine all chunks into a single Blob
-                    const blob = new Blob(chunks, { type: metadata.type });
-                    const file = new File([blob], metadata.name, {
-                        type: metadata.type,
-                    });
-
-                    if (onComplete) {
-                        onComplete(file);
-                    }
-                }
-            } catch (e) {
-                console.error('Error parsing message:', e);
-            }
-        } else {
-            // Binary data (file chunk)
-            chunks.push(event.data);
-            receivedSize += event.data.byteLength;
-
-            if (onProgress && metadata) {
-                onProgress((receivedSize / metadata.size) * 100);
-            }
-        }
+        }, fail);
     };
-};
+    // Messages may still be decrypting when the channel closes.
+    channel.onclose = () => {
+        void pending.then(() =>
+            fail(
+                new TransferError(
+                    'The sender disconnected before the transfer finished.',
+                ),
+            ),
+        );
+    };
+
+    return () => {
+        finished = true;
+        parts = [];
+        channel.close();
+    };
+}
+
+function blobType(type: string): string {
+    return /^[\w.+-]+\/[\w.+-]+$/.test(type) ? type : 'application/octet-stream';
+}

@@ -56,11 +56,11 @@ export default function AboutPage() {
                         <li>Direct peer-to-peer file transfers</li>
                         <li>End-to-end encryption</li>
                         <li>
-                            No file size limits (beyond browser constraints)
+                            No fixed file size limit (the receiver holds the
+                            file in memory until it is saved)
                         </li>
                         <li>No account required</li>
                         <li>Works across different browsers and devices</li>
-                        <li>Resumable transfers for large files</li>
                         <li>Simple, intuitive interface</li>
                     </ul>
                 </section>

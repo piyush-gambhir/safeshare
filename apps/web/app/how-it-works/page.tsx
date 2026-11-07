@@ -1,4 +1,4 @@
-import { Lock, RefreshCw, Server, Share2, Shield, Zap } from 'lucide-react';
+import { FileCheck, Lock, Server, Share2, Shield, Zap } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import {
@@ -26,9 +26,9 @@ export default function HowItWorksPage() {
             </div>
 
             <p className="mb-8 text-muted-foreground">
-                SafeShare uses cutting-edge web technologies to enable secure,
-                direct file transfers between browsers. Here&apos;s a breakdown
-                of the key components and processes that make it work:
+                SafeShare sends files directly between two browsers and
+                encrypts them end to end before they leave the sender&apos;s
+                device. Here is what each part does:
             </p>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -46,11 +46,11 @@ export default function HowItWorksPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            SafeShare uses WebRTC (Web Real-Time Communication)
-                            to establish direct connections between browsers.
-                            This allows files to be transferred directly from
-                            one device to another without passing through a
-                            central server.
+                            SafeShare uses WebRTC data channels to connect the
+                            two browsers directly, so the file never passes
+                            through a central server. There is no relay
+                            server: if the two devices cannot reach each other
+                            directly, the transfer does not start.
                         </p>
                     </CardContent>
                 </Card>
@@ -63,17 +63,18 @@ export default function HowItWorksPage() {
                         <div>
                             <CardTitle>End-to-End Encryption</CardTitle>
                             <CardDescription>
-                                AES-GCM 256-bit encryption
+                                AES-GCM with a 256-bit key
                             </CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            All file transfers are secured with AES-GCM 256-bit
-                            encryption. The encryption keys are generated in
-                            your browser and shared securely with the recipient,
-                            ensuring that only they can decrypt and access your
-                            files.
+                            Your browser generates a new 256-bit AES-GCM key for
+                            every transfer and puts it in the part of the share
+                            link after the #. Browsers never send that part to
+                            a server, so only someone with the full link can
+                            decrypt the file. The file name, size and type are
+                            encrypted too.
                         </p>
                     </CardContent>
                 </Card>
@@ -86,17 +87,17 @@ export default function HowItWorksPage() {
                         <div>
                             <CardTitle>Chunked File Transfer</CardTitle>
                             <CardDescription>
-                                Efficient handling of large files
+                                Every chunk is authenticated
                             </CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            Files are split into small chunks before transfer,
-                            allowing for efficient handling of large files and
-                            enabling features like pause, resume, and recovery
-                            from connection issues. Each chunk is encrypted
-                            individually for maximum security.
+                            Files are sent as encrypted messages of up to 64
+                            KB. Each chunk is encrypted with its own nonce and
+                            bound to its position in the transfer, so a chunk that is
+                            altered, reordered, duplicated or dropped fails to
+                            decrypt and the transfer stops.
                         </p>
                     </CardContent>
                 </Card>
@@ -115,10 +116,12 @@ export default function HowItWorksPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            A lightweight signaling server is used only to help
-                            establish the initial connection between peers. Once
-                            the connection is established, the server is no
-                            longer involved in the file transfer process.
+                            A signaling server relays the two browsers&apos;
+                            connection offers so they can find each other. It
+                            sees a random session ID, connection details such
+                            as IP addresses, and timing. It never receives the
+                            key, the file or its name, and it is not involved
+                            once the transfer starts.
                         </p>
                     </CardContent>
                 </Card>
@@ -126,22 +129,23 @@ export default function HowItWorksPage() {
                 <Card className="border bg-background/50 shadow-sm backdrop-blur-sm transition-all hover:shadow-md">
                     <CardHeader className="flex flex-row items-center gap-4">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                            <RefreshCw className="h-5 w-5 text-primary" />
+                            <FileCheck className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <CardTitle>Resumable Transfers</CardTitle>
+                            <CardTitle>Verified Before Download</CardTitle>
                             <CardDescription>
-                                Recovery from interruptions
+                                No partial or altered files
                             </CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            If a transfer is interrupted due to network issues
-                            or browser crashes, SafeShare can resume the
-                            transfer from where it left off, without having to
-                            start over. This is especially useful for large
-                            files.
+                            The last encrypted message carries the number of
+                            chunks and bytes sent. The download button appears
+                            only after the receiver&apos;s browser has checked
+                            them, so an interrupted transfer never produces a
+                            partial file. Interrupted transfers start over with
+                            a new link.
                         </p>
                     </CardContent>
                 </Card>
@@ -180,8 +184,9 @@ export default function HowItWorksPage() {
                             1
                         </span>
                         <span className="pt-1">
-                            The sender selects a file and creates a sharing
-                            link.
+                            The sender selects a file and creates a share link.
+                            Their browser generates the encryption key and puts
+                            it after the # in the link.
                         </span>
                     </li>
                     <li className="flex gap-2">
@@ -189,8 +194,9 @@ export default function HowItWorksPage() {
                             2
                         </span>
                         <span className="pt-1">
-                            The sender shares the link or QR code with the
-                            recipient.
+                            The sender passes the link to the recipient over a
+                            channel they trust. Anyone with the full link can
+                            receive the file.
                         </span>
                     </li>
                     <li className="flex gap-2">
@@ -198,8 +204,9 @@ export default function HowItWorksPage() {
                             3
                         </span>
                         <span className="pt-1">
-                            When the recipient opens the link, a direct
-                            peer-to-peer connection is established.
+                            The recipient opens the link. Their browser reads
+                            the key, removes it from the address bar, and
+                            connects directly to the sender.
                         </span>
                     </li>
                     <li className="flex gap-2">
@@ -207,18 +214,18 @@ export default function HowItWorksPage() {
                             4
                         </span>
                         <span className="pt-1">
-                            The file is encrypted, chunked, and transferred
-                            directly between browsers.
+                            The file name, size and contents are encrypted
+                            chunk by chunk and sent directly between the
+                            browsers.
                         </span>
-                        ``
                     </li>
                     <li className="flex gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
                             5
                         </span>
                         <span className="pt-1">
-                            The recipient&apos;s browser reassembles and
-                            decrypts the file.
+                            The recipient&apos;s browser decrypts and verifies
+                            every chunk, then checks the final chunk count.
                         </span>
                     </li>
                     <li className="flex gap-2">
@@ -226,7 +233,7 @@ export default function HowItWorksPage() {
                             6
                         </span>
                         <span className="pt-1">
-                            The file is ready for the recipient to download to
+                            The file is ready for the recipient to save to
                             their device.
                         </span>
                     </li>

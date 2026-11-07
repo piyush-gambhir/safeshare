@@ -1,101 +1,94 @@
+// Client for the signaling API. It only ever carries a session ID and the
+// WebRTC offer and answer: no file metadata and no keys.
+import { TransferError } from '@/lib/transfer-crypto';
+
 const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/v1';
 
-export interface FileMetadata {
-    name: string;
-    size: number;
-    type: string;
-}
-
-export interface InitiateShareResponse {
+export interface CreatedSession {
     sessionId: string;
-    publicKey: string;
-    torrentInfoHash: string;
-    shareableLink: string;
     expiresAt: number;
 }
 
-export interface SessionInfo {
+export interface SessionSignals {
     sessionId: string;
-    publicKey: string;
-    torrentInfoHash: string;
-    magnetUri: string;
-    fileMetadata: FileMetadata;
     status: string;
+    offer?: string;
+    answer?: string;
     expiresAt: number;
 }
 
-// Initiate a new file sharing session
-export const initiateShare = async (
-    fileMetadata: FileMetadata,
-): Promise<InitiateShareResponse> => {
-    const response = await fetch(`${API_BASE_URL}/share/initiate`, {
+export class ApiError extends Error {
+    readonly status: number;
+
+    constructor(status: number) {
+        super(`Signaling request failed with status ${status}`);
+        this.name = 'ApiError';
+        this.status = status;
+    }
+}
+
+export class NetworkError extends Error {
+    constructor() {
+        super('Could not reach the signaling server.');
+        this.name = 'NetworkError';
+    }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+    let response: Response;
+    try {
+        response = await fetch(`${API_BASE_URL}${path}`, init);
+    } catch (error) {
+        if (init?.signal?.aborted) throw error;
+        throw new NetworkError();
+    }
+    if (!response.ok) throw new ApiError(response.status);
+    return response.json();
+}
+
+function post<T>(path: string, body: unknown): Promise<T> {
+    return request<T>(path, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ fileMetadata }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
     });
+}
 
-    if (!response.ok) {
-        throw new Error('Failed to initiate share');
-    }
+export function createSession(): Promise<CreatedSession> {
+    return post('/share/initiate', {});
+}
 
-    return response.json();
-};
-
-// Update torrent information
-export const updateTorrent = async (
+export function getSession(
     sessionId: string,
-    torrentInfoHash: string,
-    magnetUri: string,
-): Promise<{ success: boolean }> => {
-    const response = await fetch(`${API_BASE_URL}/share/update-torrent`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sessionId, torrentInfoHash, magnetUri }),
+    signal?: AbortSignal,
+): Promise<SessionSignals> {
+    return request(`/share/session/${encodeURIComponent(sessionId)}`, {
+        cache: 'no-store',
+        signal,
     });
+}
 
-    if (!response.ok) {
-        throw new Error('Failed to update torrent');
-    }
-
-    return response.json();
-};
-
-// Get session information
-export const getSessionInfo = async (
+export function postSignal(
     sessionId: string,
-): Promise<SessionInfo> => {
-    const response = await fetch(`${API_BASE_URL}/share/session/${sessionId}`);
+    type: 'offer' | 'answer',
+    sdp: string,
+): Promise<{ success: boolean }> {
+    return post('/share/signal', { sessionId, type, sdp });
+}
 
-    if (!response.ok) {
-        throw new Error('Failed to get session info');
+export function describeError(error: unknown): string {
+    if (error instanceof ApiError) {
+        if (error.status === 404) {
+            return 'This link has expired or does not exist.';
+        }
+        if (error.status === 409) {
+            return 'This link has already been used. Ask the sender for a new one.';
+        }
+        return 'The signaling server returned an error. Try again.';
     }
-
-    return response.json();
-};
-
-// Update session status
-export const updateStatus = async (
-    sessionId: string,
-    status: 'initiated' | 'ready' | 'connected' | 'completed' | 'error',
-    peers?: number,
-    progress?: number,
-): Promise<{ success: boolean }> => {
-    const response = await fetch(`${API_BASE_URL}/share/update-status`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sessionId, status, peers, progress }),
-    });
-
-    if (!response.ok) {
-        throw new Error('Failed to update status');
+    if (error instanceof TransferError || error instanceof NetworkError) {
+        return error.message;
     }
-
-    return response.json();
-};
+    return error instanceof Error ? error.message : 'Something went wrong.';
+}

@@ -72,7 +72,7 @@ export default function Hero() {
                     Secure, decentralized file sharing directly between
                     browsers.
                     <span className="mt-2 block">
-                        No uploads, no servers, just peer-to-peer transfers.
+                        No uploads: files go straight from browser to browser.
                     </span>
                 </motion.p>
 

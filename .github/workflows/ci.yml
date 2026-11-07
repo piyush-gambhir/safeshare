@@ -53,6 +53,9 @@ jobs:
       - name: Compiler API compatibility
         run: pnpm -r typecheck:compat
 
+      - name: Test web transfer encryption
+        run: pnpm --filter ./apps/web test
+
       - name: Test Electron transfer contracts
         run: pnpm --filter ./apps/electron test
 
