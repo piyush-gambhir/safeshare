@@ -93,9 +93,9 @@ export default function HowItWorksPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-sm text-muted-foreground">
-                            Files are sent in 64 KB chunks. Each chunk is
-                            encrypted with its own nonce and bound to its
-                            position in the transfer, so a chunk that is
+                            Files are sent as encrypted messages of up to 64
+                            KB. Each chunk is encrypted with its own nonce and
+                            bound to its position in the transfer, so a chunk that is
                             altered, reordered, duplicated or dropped fails to
                             decrypt and the transfer stops.
                         </p>
