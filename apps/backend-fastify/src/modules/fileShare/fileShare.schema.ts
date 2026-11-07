@@ -3,25 +3,30 @@ import { z } from "zod";
 // Generous upper bound for a non-trickled SDP blob with all ICE candidates.
 const MAX_SDP_LENGTH = 64 * 1024;
 
+// Session IDs are 16 random bytes in hex. Rejecting anything else keeps
+// request input from addressing other Redis keys.
+export const SESSION_ID_PATTERN = "^[0-9a-f]{32}$";
+const sessionIdSchema = z.string().regex(new RegExp(SESSION_ID_PATTERN));
+
 // Input schemas
 // No file metadata: the web client sends file name, size and type only inside
 // the end-to-end encrypted data channel.
 const initiateShareInputSchema = z.object({});
 
 const updateTorrentInputSchema = z.object({
-  sessionId: z.string(),
+  sessionId: sessionIdSchema,
   torrentInfoHash: z.string(),
   magnetUri: z.string(),
 });
 
 const signalInputSchema = z.object({
-  sessionId: z.string(),
+  sessionId: sessionIdSchema,
   type: z.enum(["offer", "answer"]),
   sdp: z.string().min(1).max(MAX_SDP_LENGTH),
 });
 
 const updateStatusInputSchema = z.object({
-  sessionId: z.string(),
+  sessionId: sessionIdSchema,
   status: z.enum(["initiated", "ready", "connected", "completed", "error"]),
   peers: z.number().optional(),
   progress: z.number().optional(),

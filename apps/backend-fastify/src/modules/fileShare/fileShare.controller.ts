@@ -14,8 +14,9 @@ import {
 } from "./fileShare.schema.js";
 
 const sessionKey = (sessionId: string) => `session:${sessionId}`;
+// A separate namespace, so no session ID can address a signal key.
 const signalKey = (sessionId: string, type: "offer" | "answer") =>
-  `session:${sessionId}:${type}`;
+  `signal:${sessionId}:${type}`;
 
 async function loadSession(sessionId: string): Promise<PeerSession | null> {
   const data = await redis.get(sessionKey(sessionId));
@@ -91,7 +92,10 @@ export async function signalHandler(
   }
 
   session.status = type === "offer" ? "waiting" : "answered";
-  await updateSession(session);
+  // The session (and the just-claimed slot) expired while handling the request.
+  if (!(await updateSession(session))) {
+    return reply.code(404).send({ error: "Session not found" });
+  }
 
   return { success: true };
 }

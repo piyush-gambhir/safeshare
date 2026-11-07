@@ -7,7 +7,7 @@ import {
   updateStatusHandler,
   handleWebSocketConnection,
 } from "./fileShare.controller.js";
-import { $ref } from "./fileShare.schema.js";
+import { $ref, SESSION_ID_PATTERN } from "./fileShare.schema.js";
 
 export async function fileShareRoutes(server: FastifyInstance) {
   // Route to initiate file sharing
@@ -70,7 +70,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
         params: {
           type: "object",
           properties: {
-            sessionId: { type: "string" },
+            sessionId: { type: "string", pattern: SESSION_ID_PATTERN },
           },
           required: ["sessionId"],
         },
