@@ -1,87 +1,86 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import crypto from "crypto";
-import sodium from "libsodium-wrappers";
+import crypto from "node:crypto";
 import { redis } from "../../server.js";
-import { generateSessionId } from "../../utils/identity.js";
-import { generateInfoHash, createMagnetUri } from "../../utils/p2p.js";
 import { PeerSession } from "../../utils/types.js";
 import { FILE_EXPIRY_SECONDS, FRONTEND_URL } from "../../utils/constants.js";
 import {
-  InitiateShareInput,
   UpdateTorrentInput,
+  SignalInput,
   UpdateStatusInput,
   InitiateShareResponse,
-  UpdateTorrentResponse,
+  SuccessResponse,
   SessionInfoResponse,
-  UpdateStatusResponse,
   ErrorResponse,
 } from "./fileShare.schema.js";
 
-export async function initiateShareHandler(
-  request: FastifyRequest<{
-    Body: InitiateShareInput;
-  }>,
-): Promise<InitiateShareResponse> {
-  await sodium.ready;
+const sessionKey = (sessionId: string) => `session:${sessionId}`;
 
-  const { fileMetadata } = request.body;
+async function loadSession(sessionId: string): Promise<PeerSession | null> {
+  const data = await redis.get(sessionKey(sessionId));
+  return data ? (JSON.parse(data) as PeerSession) : null;
+}
 
-  // Generate a unique session ID based on browser fingerprint and timestamp
-  const browserInfo = request.headers["user-agent"] || "";
-  const ipHash = crypto
-    .createHash("sha256")
-    .update(request.ip || "")
-    .digest("hex")
-    .slice(0, 8);
-  const sessionId = generateSessionId(browserInfo, ipHash);
-
-  // Generate encryption keys for this session using sodium
-  const keyPair = sodium.crypto_box_keypair();
-  const publicKeyHex = Buffer.from(keyPair.publicKey).toString("hex");
-  const privateKeyHex = Buffer.from(keyPair.privateKey).toString("hex");
-
-  // Generate a torrent info hash
-  const torrentInfoHash = generateInfoHash({
-    name: fileMetadata.name,
-    size: fileMetadata.size,
-    sessionId,
-  });
-
-  // Create magnet URI
-  const magnetUri = createMagnetUri(
-    torrentInfoHash,
-    fileMetadata.name,
-    fileMetadata.size,
+// Updates keep the original TTL so the advertised expiresAt stays accurate.
+async function updateSession(session: PeerSession): Promise<void> {
+  await redis.set(
+    sessionKey(session.sessionId),
+    JSON.stringify(session),
+    "KEEPTTL",
   );
+}
 
-  // Store session information with TTL
-  const sessionInfo: PeerSession = {
+export async function initiateShareHandler(): Promise<InitiateShareResponse> {
+  // 128 bits from the OS CSPRNG. Knowing a session ID is not enough to read a
+  // web transfer: the decryption key travels only in the link's URL fragment.
+  const sessionId = crypto.randomBytes(16).toString("hex");
+  const now = Date.now();
+  const session: PeerSession = {
     sessionId,
-    publicKey: publicKeyHex,
-    privateKey: privateKeyHex,
-    torrentInfoHash,
-    magnetUri,
-    fileMetadata,
     status: "initiated",
-    createdAt: Date.now(),
-    expiresAt: Date.now() + FILE_EXPIRY_SECONDS * 1000,
+    createdAt: now,
+    expiresAt: now + FILE_EXPIRY_SECONDS * 1000,
   };
 
   await redis.set(
-    `session:${sessionId}`,
-    JSON.stringify(sessionInfo),
+    sessionKey(sessionId),
+    JSON.stringify(session),
     "EX",
     FILE_EXPIRY_SECONDS,
   );
 
-  // Return only what the client needs to know
   return {
     sessionId,
-    publicKey: publicKeyHex,
-    torrentInfoHash,
     shareableLink: `${FRONTEND_URL}/receive/${sessionId}`,
-    expiresAt: sessionInfo.expiresAt,
+    expiresAt: session.expiresAt,
   };
+}
+
+export async function signalHandler(
+  request: FastifyRequest<{
+    Body: SignalInput;
+  }>,
+  reply: FastifyReply,
+): Promise<SuccessResponse | ErrorResponse> {
+  const { sessionId, type, sdp } = request.body;
+
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return reply.code(404).send({ error: "Session not found" });
+  }
+
+  // One offer and one answer per session: the first receiver to answer wins.
+  if (session[type]) {
+    return reply.code(409).send({ error: `Session already has an ${type}` });
+  }
+  if (type === "answer" && !session.offer) {
+    return reply.code(409).send({ error: "Session has no offer yet" });
+  }
+
+  session[type] = sdp;
+  session.status = type === "offer" ? "waiting" : "answered";
+  await updateSession(session);
+
+  return { success: true };
 }
 
 export async function updateTorrentHandler(
@@ -89,29 +88,18 @@ export async function updateTorrentHandler(
     Body: UpdateTorrentInput;
   }>,
   reply: FastifyReply,
-): Promise<UpdateTorrentResponse | ErrorResponse> {
+): Promise<SuccessResponse | ErrorResponse> {
   const { sessionId, torrentInfoHash, magnetUri } = request.body;
 
-  // Retrieve the session
-  const sessionData = await redis.get(`session:${sessionId}`);
-  if (!sessionData) {
-    return reply.code(404).send({
-      error: "Session not found",
-    });
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return reply.code(404).send({ error: "Session not found" });
   }
 
-  const session: PeerSession = JSON.parse(sessionData);
   session.torrentInfoHash = torrentInfoHash;
   session.magnetUri = magnetUri;
   session.status = "ready";
-
-  // Update in Redis
-  await redis.set(
-    `session:${sessionId}`,
-    JSON.stringify(session),
-    "EX",
-    FILE_EXPIRY_SECONDS,
-  );
+  await updateSession(session);
 
   return { success: true };
 }
@@ -122,26 +110,18 @@ export async function getSessionInfoHandler(
   }>,
   reply: FastifyReply,
 ): Promise<SessionInfoResponse | ErrorResponse> {
-  const { sessionId } = request.params;
-
-  // Retrieve the session
-  const sessionData = await redis.get(`session:${sessionId}`);
-  if (!sessionData) {
-    return reply.code(404).send({
-      error: "Session not found or expired",
-    });
+  const session = await loadSession(request.params.sessionId);
+  if (!session) {
+    return reply.code(404).send({ error: "Session not found or expired" });
   }
 
-  const session: PeerSession = JSON.parse(sessionData);
-
-  // Return only what the receiver needs
   return {
     sessionId: session.sessionId,
-    publicKey: session.publicKey,
+    status: session.status,
+    offer: session.offer,
+    answer: session.answer,
     torrentInfoHash: session.torrentInfoHash,
     magnetUri: session.magnetUri,
-    fileMetadata: session.fileMetadata,
-    status: session.status,
     expiresAt: session.expiresAt,
   };
 }
@@ -161,14 +141,13 @@ export async function handleWebSocketConnection(
 
   // Set up subscription for status updates
   const statusUpdateInterval = setInterval(async () => {
-    const sessionData = await redis.get(`session:${sessionId}`);
-    if (!sessionData) {
+    const session = await loadSession(sessionId);
+    if (!session) {
       connection.socket.send(JSON.stringify({ status: "expired" }));
       clearInterval(statusUpdateInterval);
       return;
     }
 
-    const session: PeerSession = JSON.parse(sessionData);
     connection.socket.send(
       JSON.stringify({
         status: session.status,
@@ -189,27 +168,18 @@ export async function updateStatusHandler(
     Body: UpdateStatusInput;
   }>,
   reply: FastifyReply,
-): Promise<UpdateStatusResponse | ErrorResponse> {
+): Promise<SuccessResponse | ErrorResponse> {
   const { sessionId, status, peers, progress } = request.body;
 
-  const sessionData = await redis.get(`session:${sessionId}`);
-  if (!sessionData) {
-    return reply.code(404).send({
-      error: "Session not found",
-    });
+  const session = await loadSession(sessionId);
+  if (!session) {
+    return reply.code(404).send({ error: "Session not found" });
   }
 
-  const session: PeerSession = JSON.parse(sessionData);
   session.status = status;
   if (peers !== undefined) session.peers = peers;
   if (progress !== undefined) session.progress = progress;
-
-  await redis.set(
-    `session:${sessionId}`,
-    JSON.stringify(session),
-    "EX",
-    FILE_EXPIRY_SECONDS,
-  );
+  await updateSession(session);
 
   return { success: true };
 }
