@@ -1,22 +1,22 @@
 'use client';
 
+import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
-    FileMetadata,
-    getSessionInfo,
-    initiateShare,
-    updateStatus,
-    updateTorrent,
+    ApiError,
+    createSession,
+    describeError,
+    getSession,
+    postSignal,
 } from '@/lib/api';
+import { exportTransferKey, generateTransferKey } from '@/lib/transfer-crypto';
+import { formatBytes } from '@/lib/utils';
 import {
-    addIceCandidate,
-    createAnswer,
-    createOffer,
+    DATA_CHANNEL_LABEL,
     createPeerConnection,
-    receiveFile,
-    sendFile,
-    setRemoteDescription,
+    sendEncryptedFile,
+    waitForIceGathering,
 } from '@/lib/webrtc';
 
 import { Button } from '@/components/ui/button';
@@ -31,360 +31,268 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { useToast } from '@/components/ui/use-toast';
+
+type Status =
+    | 'idle'
+    | 'preparing'
+    | 'waiting'
+    | 'connecting'
+    | 'sending'
+    | 'sent'
+    | 'error';
+
+const ANSWER_POLL_MS = 1500;
+
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        signal.addEventListener(
+            'abort',
+            () => {
+                clearTimeout(timer);
+                resolve();
+            },
+            { once: true },
+        );
+    });
+}
+
+// Polls the signaling API until the receiver has posted its answer.
+async function waitForAnswer(
+    sessionId: string,
+    signal: AbortSignal,
+): Promise<string | null> {
+    while (!signal.aborted) {
+        await delay(ANSWER_POLL_MS, signal);
+        if (signal.aborted) break;
+        try {
+            const session = await getSession(sessionId);
+            if (session.answer) return session.answer;
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 404) throw error;
+            // Keep waiting through transient network errors.
+        }
+    }
+    return null;
+}
 
 export default function FileTransfer() {
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [shareLink, setShareLink] = useState<string>('');
-    const [sessionId, setSessionId] = useState<string>('');
-    const [progress, setProgress] = useState<number>(0);
-    const [peers, setPeers] = useState<number>(0);
-    const [status, setStatus] = useState<string>('idle');
-    const [isUploading, setIsUploading] = useState<boolean>(false);
-    const [isDownloading, setIsDownloading] = useState<boolean>(false);
-    const [connectionId, setConnectionId] = useState<string>('');
-    const [isHost, setIsHost] = useState<boolean>(false);
-    const { toast } = useToast();
+    const [file, setFile] = useState<File | null>(null);
+    const [status, setStatus] = useState<Status>('idle');
+    const [link, setLink] = useState('');
+    const [sentBytes, setSentBytes] = useState(0);
+    const [error, setError] = useState('');
+    const [copied, setCopied] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const pcRef = useRef<RTCPeerConnection | null>(null);
+    const abortRef = useRef<AbortController | null>(null);
 
-    // Refs for WebRTC
-    const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-    const dataChannelRef = useRef<RTCDataChannel | null>(null);
-    const iceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+    useEffect(
+        () => () => {
+            abortRef.current?.abort();
+            pcRef.current?.close();
+        },
+        [],
+    );
 
-    // Handle file selection
-    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (file) {
-            setSelectedFile(file);
-        }
-    };
+    async function share() {
+        if (!file) return;
+        const abort = new AbortController();
+        abortRef.current = abort;
+        let done = false;
 
-    // Initialize as host (sender)
-    const initializeAsHost = async () => {
-        if (!selectedFile) return;
+        const fail = (cause: unknown) => {
+            if (abort.signal.aborted || done) return;
+            abort.abort();
+            pcRef.current?.close();
+            setError(describeError(cause));
+            setStatus('error');
+        };
 
+        setStatus('preparing');
+        setError('');
+        setSentBytes(0);
         try {
-            setIsHost(true);
-            setIsUploading(true);
-            setStatus('initiating');
-
-            // Create file metadata
-            const fileMetadata: FileMetadata = {
-                name: selectedFile.name,
-                size: selectedFile.size,
-                type: selectedFile.type,
-            };
-
-            // Initiate share session
-            const shareResponse = await initiateShare(fileMetadata);
-            setSessionId(shareResponse.sessionId);
-            setConnectionId(shareResponse.sessionId);
-            setShareLink(shareResponse.shareableLink);
-
-            // Create WebRTC peer connection
+            const [session, key] = await Promise.all([
+                createSession(),
+                generateTransferKey(),
+            ]);
             const pc = createPeerConnection();
-            peerConnectionRef.current = pc;
+            pcRef.current = pc;
 
-            // Set up ICE candidate handling
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    iceCandidatesRef.current.push(event.candidate);
-                }
-            };
-
-            // Create data channel
-            const dataChannel = pc.createDataChannel('fileTransfer', {
+            const channel = pc.createDataChannel(DATA_CHANNEL_LABEL, {
                 ordered: true,
             });
-            dataChannelRef.current = dataChannel;
-
-            // Set up data channel events
-            dataChannel.onopen = () => {
-                setStatus('connected');
-                setPeers(1);
-            };
-
-            // Create and set local description (offer)
-            const offer = await createOffer(pc);
-
-            // Update session with offer and ICE candidates
-            await updateTorrent(
-                shareResponse.sessionId,
-                shareResponse.torrentInfoHash,
-                JSON.stringify({
-                    type: 'webrtc',
-                    offer,
-                    iceCandidates: iceCandidatesRef.current,
-                }),
-            );
-
-            setStatus('waiting');
-        } catch (error) {
-            console.error('Host initialization error:', error);
-            setStatus('error');
-            setIsUploading(false);
-            toast({
-                title: 'Connection Failed',
-                description: 'There was an error initializing the connection.',
-                variant: 'destructive',
-            });
-        }
-    };
-
-    // Initialize as guest (receiver)
-    const initializeAsGuest = async () => {
-        if (!connectionId) return;
-
-        try {
-            setIsHost(false);
-            setIsDownloading(true);
-            setStatus('initiating');
-
-            // Get session information
-            const sessionInfo = await getSessionInfo(connectionId);
-
-            // Parse WebRTC data
-            const webrtcData = JSON.parse(sessionInfo.magnetUri);
-
-            // Create WebRTC peer connection
-            const pc = createPeerConnection();
-            peerConnectionRef.current = pc;
-
-            // Set up data channel event
-            pc.ondatachannel = (event) => {
-                dataChannelRef.current = event.channel;
-
-                // Set up file receiving
-                receiveFile(
-                    event.channel,
-                    (metadata) => {
-                        setStatus('receiving');
-                        toast({
-                            title: 'Receiving File',
-                            description: `Receiving ${metadata.name} (${formatFileSize(metadata.size)})`,
-                        });
-                    },
-                    (progress) => {
-                        setProgress(progress);
-                    },
-                    (file) => {
-                        // Download the file
-                        const url = URL.createObjectURL(file);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = file.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-
-                        setStatus('completed');
-                        setIsDownloading(false);
-                        toast({
-                            title: 'Download Complete',
-                            description:
-                                'File has been successfully downloaded.',
-                        });
-                    },
-                );
-            };
-
-            // Set up ICE candidate handling
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    iceCandidatesRef.current.push(event.candidate);
-                }
-            };
-
-            // Set remote description (offer)
-            await pc.setRemoteDescription(
-                new RTCSessionDescription(webrtcData.offer),
-            );
-
-            // Add ICE candidates
-            for (const candidate of webrtcData.iceCandidates) {
-                await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            }
-
-            // Create and set local description (answer)
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-
-            // Update session with answer and ICE candidates
-            await updateTorrent(
-                sessionInfo.sessionId,
-                sessionInfo.torrentInfoHash,
-                JSON.stringify({
-                    type: 'webrtc',
-                    answer,
-                    iceCandidates: iceCandidatesRef.current,
-                }),
-            );
-
-            setStatus('connecting');
-        } catch (error) {
-            console.error('Guest initialization error:', error);
-            setStatus('error');
-            setIsDownloading(false);
-            toast({
-                title: 'Connection Failed',
-                description: 'There was an error connecting to the host.',
-                variant: 'destructive',
-            });
-        }
-    };
-
-    // Check for answer from guest
-    useEffect(() => {
-        if (!isHost || status !== 'waiting') return;
-
-        const checkForAnswer = async () => {
-            try {
-                const sessionInfo = await getSessionInfo(sessionId);
-                const webrtcData = JSON.parse(sessionInfo.magnetUri);
-
-                if (webrtcData.type === 'webrtc' && webrtcData.answer) {
-                    // Set remote description (answer)
-                    await peerConnectionRef.current?.setRemoteDescription(
-                        new RTCSessionDescription(webrtcData.answer),
-                    );
-
-                    // Add ICE candidates
-                    for (const candidate of webrtcData.iceCandidates) {
-                        await peerConnectionRef.current?.addIceCandidate(
-                            new RTCIceCandidate(candidate),
-                        );
-                    }
-
-                    setStatus('connected');
-                }
-            } catch (error) {
-                console.error('Error checking for answer:', error);
-            }
-        };
-
-        const interval = setInterval(checkForAnswer, 2000);
-        return () => clearInterval(interval);
-    }, [isHost, status, sessionId]);
-
-    // Send file when connection is established
-    useEffect(() => {
-        if (
-            !isHost ||
-            status !== 'connected' ||
-            !dataChannelRef.current ||
-            !selectedFile
-        )
-            return;
-
-        const sendFileData = async () => {
-            try {
+            channel.binaryType = 'arraybuffer';
+            channel.onopen = () => {
                 setStatus('sending');
-                await sendFile(
-                    dataChannelRef.current!,
-                    selectedFile,
-                    (progress) => {
-                        setProgress(progress);
-                    },
-                );
+                sendEncryptedFile(channel, file, key, session.sessionId, setSentBytes)
+                    .then(() => {
+                        if (abort.signal.aborted) return;
+                        done = true;
+                        setStatus('sent');
+                    })
+                    .catch(fail);
+            };
+            // The receiver closes the connection once it has verified the file.
+            channel.onclose = () => {
+                if (done) pc.close();
+            };
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'failed') {
+                    fail(
+                        new Error(
+                            'Could not connect directly to the receiver. A strict NAT or firewall may be blocking peer-to-peer connections.',
+                        ),
+                    );
+                }
+            };
 
-                setStatus('completed');
-                setIsUploading(false);
-                toast({
-                    title: 'Upload Complete',
-                    description: 'File has been successfully shared.',
-                });
-            } catch (error) {
-                console.error('Error sending file:', error);
-                setStatus('error');
-                setIsUploading(false);
-                toast({
-                    title: 'Upload Failed',
-                    description: 'There was an error sending the file.',
-                    variant: 'destructive',
-                });
-            }
-        };
+            await pc.setLocalDescription(await pc.createOffer());
+            await waitForIceGathering(pc);
+            await postSignal(session.sessionId, 'offer', pc.localDescription!.sdp);
+            if (abort.signal.aborted) return;
 
-        sendFileData();
-    }, [isHost, status, selectedFile]);
+            // The key goes only into the URL fragment, which browsers never send
+            // to a server.
+            const encodedKey = await exportTransferKey(key);
+            setLink(
+                `${window.location.origin}/receive/${session.sessionId}#k=${encodedKey}`,
+            );
+            setStatus('waiting');
 
-    // Format file size
-    const formatFileSize = (bytes: number): string => {
-        if (bytes === 0) return '0 Bytes';
+            const answer = await waitForAnswer(session.sessionId, abort.signal);
+            if (!answer) return;
+            setStatus('connecting');
+            await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+        } catch (cause) {
+            fail(cause);
+        }
+    }
 
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
+    function reset() {
+        abortRef.current?.abort();
+        pcRef.current?.close();
+        pcRef.current = null;
+        if (inputRef.current) inputRef.current.value = '';
+        setFile(null);
+        setLink('');
+        setSentBytes(0);
+        setError('');
+        setCopied(false);
+        setStatus('idle');
+    }
 
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    async function copyLink() {
+        await navigator.clipboard.writeText(link);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    }
+
+    const size = file?.size ?? 0;
+    const percent =
+        status === 'sent' ? 100 : size > 0 ? Math.floor((sentBytes / size) * 100) : 0;
+    const statusText: Record<Status, string> = {
+        idle: '',
+        preparing: 'Creating an encrypted session',
+        waiting: 'Waiting for the receiver to open the link',
+        connecting: 'Connecting directly to the receiver',
+        sending: `Sending ${formatBytes(sentBytes)} of ${formatBytes(size)}`,
+        sent: `Sent ${formatBytes(size)}`,
+        error: '',
     };
 
     return (
         <Card className="mx-auto w-full max-w-md">
             <CardHeader>
-                <CardTitle>File Transfer</CardTitle>
+                <CardTitle>Send a file</CardTitle>
                 <CardDescription>
-                    Share files securely using P2P technology
+                    Encrypted in your browser before it leaves. The server
+                    never sees the file or its name.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="file">Select File</Label>
+                    <Label htmlFor="file">File</Label>
                     <Input
                         id="file"
+                        ref={inputRef}
                         type="file"
-                        onChange={handleFileSelect}
-                        disabled={isUploading || isDownloading}
+                        onChange={(event) =>
+                            setFile(event.target.files?.[0] ?? null)
+                        }
+                        disabled={status !== 'idle'}
                     />
                 </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="connectionId">Connection ID</Label>
-                    <Input
-                        id="connectionId"
-                        placeholder="Enter connection ID to join"
-                        value={connectionId}
-                        onChange={(e) => setConnectionId(e.target.value)}
-                        disabled={isUploading || isDownloading}
-                    />
-                </div>
-
-                {shareLink && (
+                {link && (
                     <div className="space-y-2">
-                        <Label htmlFor="shareLink">Share Link</Label>
-                        <Input
-                            id="shareLink"
-                            value={shareLink}
-                            readOnly
-                            className="bg-muted"
-                        />
+                        <Label htmlFor="shareLink">Share link</Label>
+                        <div className="flex items-start gap-2">
+                            <output
+                                id="shareLink"
+                                className="min-w-0 flex-1 rounded-md border bg-muted px-3 py-2 font-mono text-xs break-all"
+                            >
+                                {link}
+                            </output>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={copyLink}
+                                aria-label="Copy share link"
+                            >
+                                {copied ? (
+                                    <Check className="h-4 w-4" />
+                                ) : (
+                                    <Copy className="h-4 w-4" />
+                                )}
+                            </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            The part after # is the decryption key. Anyone with
+                            the full link can receive the file, so share it
+                            over a channel you trust.
+                        </p>
                     </div>
                 )}
 
-                {(isUploading || isDownloading) && (
+                {status !== 'idle' && status !== 'error' && (
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                            <span>Progress: {Math.round(progress)}%</span>
-                            <span>Status: {status}</span>
+                            <span>{statusText[status]}</span>
+                            {(status === 'sending' || status === 'sent') && (
+                                <span>{percent}%</span>
+                            )}
                         </div>
-                        <Progress value={progress} />
+                        {(status === 'sending' || status === 'sent') && (
+                            <Progress value={percent} />
+                        )}
                     </div>
                 )}
+
+                {status === 'error' && (
+                    <p className="text-sm text-destructive" role="alert">
+                        {error}
+                    </p>
+                )}
             </CardContent>
-            <CardFooter className="flex justify-between">
-                <Button
-                    onClick={initializeAsHost}
-                    disabled={!selectedFile || isUploading || isDownloading}
-                >
-                    {isUploading ? 'Uploading...' : 'Share File'}
-                </Button>
-                <Button
-                    onClick={initializeAsGuest}
-                    disabled={!connectionId || isUploading || isDownloading}
-                >
-                    {isDownloading ? 'Downloading...' : 'Join Session'}
-                </Button>
+            <CardFooter>
+                {status === 'idle' ? (
+                    <Button onClick={share} disabled={!file}>
+                        Create share link
+                    </Button>
+                ) : (
+                    <Button
+                        variant="outline"
+                        onClick={reset}
+                        disabled={status === 'preparing'}
+                    >
+                        {status === 'sent' || status === 'error'
+                            ? 'Send another file'
+                            : 'Cancel'}
+                    </Button>
+                )}
             </CardFooter>
         </Card>
     );
