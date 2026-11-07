@@ -14,19 +14,24 @@ import {
 } from "./fileShare.schema.js";
 
 const sessionKey = (sessionId: string) => `session:${sessionId}`;
+const signalKey = (sessionId: string, type: "offer" | "answer") =>
+  `session:${sessionId}:${type}`;
 
 async function loadSession(sessionId: string): Promise<PeerSession | null> {
   const data = await redis.get(sessionKey(sessionId));
   return data ? (JSON.parse(data) as PeerSession) : null;
 }
 
-// Updates keep the original TTL so the advertised expiresAt stays accurate.
-async function updateSession(session: PeerSession): Promise<void> {
-  await redis.set(
+// Updates keep the original TTL, so the advertised expiresAt stays accurate,
+// and never recreate a session that expired in the meantime (XX).
+async function updateSession(session: PeerSession): Promise<boolean> {
+  const result = await redis.set(
     sessionKey(session.sessionId),
     JSON.stringify(session),
     "KEEPTTL",
+    "XX",
   );
+  return result === "OK";
 }
 
 export async function initiateShareHandler(): Promise<InitiateShareResponse> {
@@ -68,15 +73,23 @@ export async function signalHandler(
     return reply.code(404).send({ error: "Session not found" });
   }
 
-  // One offer and one answer per session: the first receiver to answer wins.
-  if (session[type]) {
-    return reply.code(409).send({ error: `Session already has an ${type}` });
-  }
-  if (type === "answer" && !session.offer) {
+  if (type === "answer" && !(await redis.exists(signalKey(sessionId, "offer")))) {
     return reply.code(409).send({ error: "Session has no offer yet" });
   }
 
-  session[type] = sdp;
+  // SET NX claims the slot atomically: one offer and one answer per session,
+  // and the first receiver to answer wins. The slot expires with the session.
+  const claimed = await redis.set(
+    signalKey(sessionId, type),
+    sdp,
+    "PXAT",
+    session.expiresAt,
+    "NX",
+  );
+  if (claimed !== "OK") {
+    return reply.code(409).send({ error: `Session already has an ${type}` });
+  }
+
   session.status = type === "offer" ? "waiting" : "answered";
   await updateSession(session);
 
@@ -99,7 +112,9 @@ export async function updateTorrentHandler(
   session.torrentInfoHash = torrentInfoHash;
   session.magnetUri = magnetUri;
   session.status = "ready";
-  await updateSession(session);
+  if (!(await updateSession(session))) {
+    return reply.code(404).send({ error: "Session not found" });
+  }
 
   return { success: true };
 }
@@ -110,16 +125,22 @@ export async function getSessionInfoHandler(
   }>,
   reply: FastifyReply,
 ): Promise<SessionInfoResponse | ErrorResponse> {
-  const session = await loadSession(request.params.sessionId);
-  if (!session) {
+  const { sessionId } = request.params;
+  const [data, offer, answer] = await redis.mget(
+    sessionKey(sessionId),
+    signalKey(sessionId, "offer"),
+    signalKey(sessionId, "answer"),
+  );
+  if (!data) {
     return reply.code(404).send({ error: "Session not found or expired" });
   }
+  const session = JSON.parse(data) as PeerSession;
 
   return {
     sessionId: session.sessionId,
     status: session.status,
-    offer: session.offer,
-    answer: session.answer,
+    offer: offer ?? undefined,
+    answer: answer ?? undefined,
     torrentInfoHash: session.torrentInfoHash,
     magnetUri: session.magnetUri,
     expiresAt: session.expiresAt,
@@ -179,7 +200,9 @@ export async function updateStatusHandler(
   session.status = status;
   if (peers !== undefined) session.peers = peers;
   if (progress !== undefined) session.progress = progress;
-  await updateSession(session);
+  if (!(await updateSession(session))) {
+    return reply.code(404).send({ error: "Session not found" });
+  }
 
   return { success: true };
 }
