@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
     CHUNK_SIZE,
+    MAX_MESSAGE_BYTES,
     TransferDecryptor,
     TransferEncryptor,
     TransferError,
@@ -81,6 +82,13 @@ test('round trip restores metadata and bytes across several chunks', async () =>
         type: 'application/pdf',
     });
     assert.deepEqual(bytes, file);
+});
+
+test('every message fits the 64 KiB interoperable SCTP message size', async () => {
+    const key = await generateTransferKey();
+    const messages = await sealFile(key, randomBytes(CHUNK_SIZE * 2));
+    assert.equal(messages[1].byteLength, MAX_MESSAGE_BYTES);
+    assert.ok(messages.every((message) => message.byteLength <= MAX_MESSAGE_BYTES));
 });
 
 test('an empty file round trips', async () => {

@@ -28,8 +28,21 @@ export class ApiError extends Error {
     }
 }
 
+export class NetworkError extends Error {
+    constructor() {
+        super('Could not reach the signaling server.');
+        this.name = 'NetworkError';
+    }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}`, init);
+    let response: Response;
+    try {
+        response = await fetch(`${API_BASE_URL}${path}`, init);
+    } catch (error) {
+        if (init?.signal?.aborted) throw error;
+        throw new NetworkError();
+    }
     if (!response.ok) throw new ApiError(response.status);
     return response.json();
 }
@@ -46,9 +59,13 @@ export function createSession(): Promise<CreatedSession> {
     return post('/share/initiate', {});
 }
 
-export function getSession(sessionId: string): Promise<SessionSignals> {
+export function getSession(
+    sessionId: string,
+    signal?: AbortSignal,
+): Promise<SessionSignals> {
     return request(`/share/session/${encodeURIComponent(sessionId)}`, {
         cache: 'no-store',
+        signal,
     });
 }
 
@@ -70,9 +87,8 @@ export function describeError(error: unknown): string {
         }
         return 'The signaling server returned an error. Try again.';
     }
-    if (error instanceof TransferError) return error.message;
-    if (error instanceof TypeError) {
-        return 'Could not reach the signaling server.';
+    if (error instanceof TransferError || error instanceof NetworkError) {
+        return error.message;
     }
     return error instanceof Error ? error.message : 'Something went wrong.';
 }

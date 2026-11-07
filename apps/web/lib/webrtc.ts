@@ -46,7 +46,13 @@ export function waitForIceGathering(
     });
 }
 
+function closedError(): TransferError {
+    return new TransferError('The connection closed during the transfer.');
+}
+
 function waitForBuffer(channel: RTCDataChannel, threshold: number): Promise<void> {
+    // A closed channel can keep a nonzero bufferedAmount and fires no more events.
+    if (channel.readyState !== 'open') return Promise.reject(closedError());
     if (channel.bufferedAmount <= threshold) return Promise.resolve();
     return new Promise((resolve, reject) => {
         const cleanup = () => {
@@ -60,7 +66,7 @@ function waitForBuffer(channel: RTCDataChannel, threshold: number): Promise<void
         };
         const onClose = () => {
             cleanup();
-            reject(new TransferError('The connection closed during the transfer.'));
+            reject(closedError());
         };
         channel.addEventListener('bufferedamountlow', onLow);
         channel.addEventListener('close', onClose);
@@ -83,9 +89,7 @@ export async function sendEncryptedFile(
         if (channel.bufferedAmount > HIGH_WATER) {
             await waitForBuffer(channel, LOW_WATER);
         }
-        if (channel.readyState !== 'open') {
-            throw new TransferError('The connection closed during the transfer.');
-        }
+        if (channel.readyState !== 'open') throw closedError();
         channel.send(message);
     };
 
@@ -120,13 +124,14 @@ export interface ReceiveHandlers {
 
 // Decrypts messages as they arrive. A decryption failure, an unexpected
 // message, or the channel closing before the authenticated end message aborts
-// the transfer and drops everything received.
+// the transfer and drops everything received. The returned function cancels
+// the transfer silently, for example when the peer connection fails.
 export function receiveEncryptedFile(
     channel: RTCDataChannel,
     key: CryptoKey,
     transferId: string,
     handlers: ReceiveHandlers,
-): void {
+): () => void {
     const decryptor = new TransferDecryptor(key, transferId);
     let parts: ArrayBuffer[] = [];
     let received = 0;
@@ -178,6 +183,12 @@ export function receiveEncryptedFile(
                 ),
             ),
         );
+    };
+
+    return () => {
+        finished = true;
+        parts = [];
+        channel.close();
     };
 }
 

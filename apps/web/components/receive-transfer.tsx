@@ -74,18 +74,24 @@ export default function ReceiveTransfer({ sessionId }: { sessionId: string }) {
     const keyRef = useRef<CryptoKey | null>(null);
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const checkedRef = useRef(false);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
         if (checkedRef.current) return;
         checkedRef.current = true;
 
         const encodedKey = keyFromFragment(window.location.hash);
-        // Drop the key from the address bar and history as soon as it is read.
+        // Drop the key from the address bar, history and the Next.js router.
+        // A null state goes through Next's patched replaceState, which also
+        // updates the router's URL; the timeout lets the router install that
+        // patch, since its effect runs after this one.
         if (window.location.hash) {
-            window.history.replaceState(
-                window.history.state,
-                '',
-                window.location.pathname + window.location.search,
+            setTimeout(() =>
+                window.history.replaceState(
+                    null,
+                    '',
+                    window.location.pathname + window.location.search,
+                ),
             );
         }
 
@@ -98,16 +104,24 @@ export default function ReceiveTransfer({ sessionId }: { sessionId: string }) {
         );
     }, [sessionId]);
 
-    useEffect(() => () => pcRef.current?.close(), []);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            pcRef.current?.close();
+        };
+    }, []);
 
     async function receive() {
         const key = keyRef.current;
         if (!key) return;
         let done = false;
+        let cancelReceive: (() => void) | null = null;
 
         const fail = (cause: unknown) => {
             if (done) return;
             done = true;
+            cancelReceive?.();
             pcRef.current?.close();
             setPhase({ kind: 'error', message: describeError(cause) });
         };
@@ -115,6 +129,7 @@ export default function ReceiveTransfer({ sessionId }: { sessionId: string }) {
         setPhase({ kind: 'connecting' });
         try {
             const session = await getSession(sessionId);
+            if (!mountedRef.current) return;
             if (!session.offer) {
                 throw new Error('The sender has not finished setting up this link.');
             }
@@ -127,16 +142,21 @@ export default function ReceiveTransfer({ sessionId }: { sessionId: string }) {
             const pc = createPeerConnection();
             pcRef.current = pc;
             pc.ondatachannel = (event) => {
-                receiveEncryptedFile(event.channel, key, sessionId, {
-                    onMetadata: (metadata) =>
-                        setPhase({ kind: 'receiving', metadata, received: 0 }),
-                    onProgress: (received) =>
+                cancelReceive = receiveEncryptedFile(event.channel, key, sessionId, {
+                    onMetadata: (metadata) => {
+                        if (done) return;
+                        setPhase({ kind: 'receiving', metadata, received: 0 });
+                    },
+                    onProgress: (received) => {
+                        if (done) return;
                         setPhase((current) =>
                             current.kind === 'receiving'
                                 ? { ...current, received }
                                 : current,
-                        ),
+                        );
+                    },
                     onComplete: (file, metadata) => {
+                        if (done) return;
                         done = true;
                         pc.close();
                         setPhase({ kind: 'complete', metadata, file });
@@ -157,6 +177,10 @@ export default function ReceiveTransfer({ sessionId }: { sessionId: string }) {
             await pc.setRemoteDescription({ type: 'offer', sdp: session.offer });
             await pc.setLocalDescription(await pc.createAnswer());
             await waitForIceGathering(pc);
+            if (!mountedRef.current) {
+                pc.close();
+                return;
+            }
             await postSignal(sessionId, 'answer', pc.localDescription!.sdp);
         } catch (cause) {
             fail(cause);

@@ -17,7 +17,17 @@
 // `node --test` unit tests.
 
 export const PROTOCOL_VERSION = 1;
-export const CHUNK_SIZE = 64 * 1024;
+
+const KEY_BYTES = 32;
+const IV_BYTES = 12;
+const IV_PREFIX_BYTES = 4;
+const HEADER_BYTES = 2 + IV_BYTES;
+const TAG_BYTES = 16;
+
+// Messages stay within 64 KiB, the SCTP message size every WebRTC peer must
+// accept (RFC 8841), so chunks leave room for the header and tag.
+export const MAX_MESSAGE_BYTES = 64 * 1024;
+export const CHUNK_SIZE = MAX_MESSAGE_BYTES - HEADER_BYTES - TAG_BYTES;
 
 export const MessageType = {
     Metadata: 1,
@@ -44,26 +54,31 @@ export class TransferError extends Error {
     }
 }
 
-const KEY_BYTES = 32;
-const IV_BYTES = 12;
-const IV_PREFIX_BYTES = 4;
-const HEADER_BYTES = 2 + IV_BYTES;
-const TAG_BYTES = 16;
 const AAD_LABEL = new TextEncoder().encode('safeshare');
 const BASE64URL_KEY = /^[A-Za-z0-9_-]{43}$/;
 const MAX_NAME_LENGTH = 1024;
 
 // Key handling
 
+// WebCrypto only exists in secure contexts (HTTPS or localhost).
+function subtle(): SubtleCrypto {
+    if (!globalThis.crypto?.subtle) {
+        throw new TransferError(
+            'Encryption needs a secure connection. Open SafeShare over HTTPS.',
+        );
+    }
+    return globalThis.crypto.subtle;
+}
+
 export function generateTransferKey(): Promise<CryptoKey> {
-    return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+    return subtle().generateKey({ name: 'AES-GCM', length: 256 }, true, [
         'encrypt',
         'decrypt',
     ]);
 }
 
 export async function exportTransferKey(key: CryptoKey): Promise<string> {
-    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', key));
+    const raw = new Uint8Array(await subtle().exportKey('raw', key));
     return toBase64Url(raw);
 }
 
@@ -77,7 +92,7 @@ export async function importTransferKey(encoded: string): Promise<CryptoKey> {
     if (raw.byteLength !== KEY_BYTES) {
         throw new TransferError('The link has a malformed decryption key.');
     }
-    return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, [
+    return subtle().importKey('raw', raw, { name: 'AES-GCM' }, false, [
         'decrypt',
     ]);
 }
@@ -143,7 +158,7 @@ export class TransferEncryptor {
         new DataView(iv.buffer).setBigUint64(IV_PREFIX_BYTES, BigInt(sequence));
 
         const ciphertext = new Uint8Array(
-            await crypto.subtle.encrypt(
+            await subtle().encrypt(
                 {
                     name: 'AES-GCM',
                     iv,
@@ -275,7 +290,7 @@ export class TransferDecryptor {
     ): Promise<Uint8Array<ArrayBuffer>> {
         try {
             return new Uint8Array(
-                await crypto.subtle.decrypt(
+                await subtle().decrypt(
                     {
                         name: 'AES-GCM',
                         iv,

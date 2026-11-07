@@ -66,11 +66,11 @@ async function waitForAnswer(
         await delay(ANSWER_POLL_MS, signal);
         if (signal.aborted) break;
         try {
-            const session = await getSession(sessionId);
-            if (session.answer) return session.answer;
+            const session = await getSession(sessionId, signal);
+            if (session.answer && !signal.aborted) return session.answer;
         } catch (error) {
             if (error instanceof ApiError && error.status === 404) throw error;
-            // Keep waiting through transient network errors.
+            // Keep waiting through transient network errors and aborts.
         }
     }
     return null;
@@ -99,12 +99,20 @@ export default function FileTransfer() {
         if (!file) return;
         const abort = new AbortController();
         abortRef.current = abort;
+        let pc: RTCPeerConnection | null = null;
         let done = false;
 
+        // Reset and unmount abort the controller; setup steps that finish
+        // afterwards must close anything they created and stop.
+        const cancelled = () => {
+            if (!abort.signal.aborted) return false;
+            pc?.close();
+            return true;
+        };
         const fail = (cause: unknown) => {
-            if (abort.signal.aborted || done) return;
+            if (cancelled() || done) return;
             abort.abort();
-            pcRef.current?.close();
+            pc?.close();
             setError(describeError(cause));
             setStatus('error');
         };
@@ -117,18 +125,21 @@ export default function FileTransfer() {
                 createSession(),
                 generateTransferKey(),
             ]);
-            const pc = createPeerConnection();
-            pcRef.current = pc;
+            if (cancelled()) return;
+            const peer = createPeerConnection();
+            pc = peer;
+            pcRef.current = peer;
 
-            const channel = pc.createDataChannel(DATA_CHANNEL_LABEL, {
+            const channel = peer.createDataChannel(DATA_CHANNEL_LABEL, {
                 ordered: true,
             });
             channel.binaryType = 'arraybuffer';
             channel.onopen = () => {
+                if (cancelled()) return;
                 setStatus('sending');
                 sendEncryptedFile(channel, file, key, session.sessionId, setSentBytes)
                     .then(() => {
-                        if (abort.signal.aborted) return;
+                        if (cancelled()) return;
                         done = true;
                         setStatus('sent');
                     })
@@ -136,10 +147,10 @@ export default function FileTransfer() {
             };
             // The receiver closes the connection once it has verified the file.
             channel.onclose = () => {
-                if (done) pc.close();
+                if (done) peer.close();
             };
-            pc.onconnectionstatechange = () => {
-                if (pc.connectionState === 'failed') {
+            peer.onconnectionstatechange = () => {
+                if (peer.connectionState === 'failed') {
                     fail(
                         new Error(
                             'Could not connect directly to the receiver. A strict NAT or firewall may be blocking peer-to-peer connections.',
@@ -148,23 +159,24 @@ export default function FileTransfer() {
                 }
             };
 
-            await pc.setLocalDescription(await pc.createOffer());
-            await waitForIceGathering(pc);
-            await postSignal(session.sessionId, 'offer', pc.localDescription!.sdp);
-            if (abort.signal.aborted) return;
+            await peer.setLocalDescription(await peer.createOffer());
+            await waitForIceGathering(peer);
+            if (cancelled()) return;
+            await postSignal(session.sessionId, 'offer', peer.localDescription!.sdp);
+            const encodedKey = await exportTransferKey(key);
+            if (cancelled()) return;
 
             // The key goes only into the URL fragment, which browsers never send
             // to a server.
-            const encodedKey = await exportTransferKey(key);
             setLink(
                 `${window.location.origin}/receive/${session.sessionId}#k=${encodedKey}`,
             );
             setStatus('waiting');
 
             const answer = await waitForAnswer(session.sessionId, abort.signal);
-            if (!answer) return;
+            if (!answer || cancelled()) return;
             setStatus('connecting');
-            await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+            await peer.setRemoteDescription({ type: 'answer', sdp: answer });
         } catch (cause) {
             fail(cause);
         }
