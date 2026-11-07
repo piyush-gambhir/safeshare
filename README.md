@@ -1,75 +1,78 @@
 # SafeShare
 
-Peer-to-peer file transfer over WebRTC. The sender's browser streams the file straight to the receiver's browser over a data channel, and a small signaling API only brokers the connection, so file contents never go through it. SafeShare is a prototype: see [Status](#status) for what works today.
+End-to-end encrypted file transfer between two browsers. The sender's browser encrypts the file with a key that exists only in the share link's URL fragment and streams it straight to the receiver over WebRTC. A small signaling API introduces the two browsers and never sees the key, the file or its name.
 
 <p align="center">
-  <img src="docs/images/web-share.png" width="720" alt="SafeShare web client with quarterly-report.pdf selected, a session created, and the connection ID and share link shown">
+  <img src="docs/images/web-share.png" width="720" alt="SafeShare web client after sending quarterly-report.pdf, showing the share link with the key after #k= and the transfer at 100 percent">
 </p>
 
 ## How it works
 
-There are two paths. The **signaling path** is JSON over HTTP between each client and the Fastify API, which keeps sessions in Redis. The **data path** is a direct WebRTC data channel between the two browsers.
+There are two paths. The **signaling path** is JSON over HTTP between each browser and the Fastify API, which keeps sessions in Redis. The **data path** is a direct WebRTC data channel between the two browsers, and everything on it is encrypted with the key from the link.
 
 ```mermaid
 sequenceDiagram
     participant S as Sender browser
     participant API as Signaling API (Fastify + Redis)
     participant R as Receiver browser
-    S->>API: POST /v1/share/initiate (name, size, type)
-    API-->>S: session ID (the connection ID), share link
-    S->>API: POST /v1/share/update-torrent (SDP offer)
-    Note over S,R: The sender passes the connection ID to the receiver
+    S->>S: Generate an AES-GCM-256 key
+    S->>API: POST /v1/share/initiate (no file details)
+    API-->>S: Random session ID
+    S->>API: POST /v1/share/signal (SDP offer)
+    Note over S,R: Sender shares /receive/<session ID>#k=<key>
+    R->>R: Read the key, remove it from the address bar
     R->>API: GET /v1/share/session/:id
-    API-->>R: SDP offer, file metadata
-    R->>API: POST /v1/share/update-torrent (SDP answer)
-    loop every 2 seconds
-        S->>API: GET /v1/share/session/:id
-    end
+    API-->>R: SDP offer
+    R->>API: POST /v1/share/signal (SDP answer)
+    S->>API: GET /v1/share/session/:id (polls)
     API-->>S: SDP answer
-    S->>R: WebRTC data channel over DTLS: metadata, 16 KB chunks, "complete"
+    S->>R: Data channel: encrypted metadata, chunks, end message
+    R->>R: Verify, then offer the download
 ```
 
-1. The sender creates a session with the file's name, size and MIME type. The API stores it in Redis for 24 hours and returns a 16-character session ID, shown in the UI as the connection ID.
-2. The sender opens an `RTCPeerConnection` with an ordered data channel and posts its SDP offer. The API keeps it in the session's `magnetUri` field (a leftover from the WebTorrent design), where the receiver's answer later replaces it.
-3. The receiver enters the connection ID, fetches the offer and posts an answer. The sender polls for the answer every 2 seconds.
-4. When the channel opens, the sender sends a JSON metadata message, the file as 16 KB `ArrayBuffer` chunks, then a `complete` message. The receiver rebuilds the file as a `Blob` and saves it.
-
-NAT traversal uses Google's public STUN servers. No TURN relay is configured, so peers that cannot reach each other directly (for example, two behind symmetric NATs) will not connect.
-
-**What the API sees:** the file name, size and MIME type; the SDP offer and answer, which carry each browser's DTLS certificate fingerprint and any ICE candidates (peer IP addresses); transfer status; and the client IP, a hash of which goes into the session ID. Sessions expire from Redis 24 hours after their last update.
-
-**What the API does not receive:** file contents, since neither client uploads file data to it, and the DTLS keys, which each browser generates and keeps. A malicious signaling server could still read a transfer by intercepting the connection (see [Security model](#security-model)).
-
-**Desktop client.** The Electron app uses the same API differently. Its main process seeds the file with WebTorrent and registers the real magnet URI with the session; the receiver's WebTorrent client downloads it into the Downloads folder. Peers are found through WebTorrent's default public trackers and the BitTorrent DHT. Because the web and desktop clients use different transports, they cannot send files to each other.
+1. The sender picks a file. Their browser asks the API for a session (it sends nothing about the file) and generates a fresh AES-GCM-256 key.
+2. The sender's browser waits for ICE gathering to finish, posts its SDP offer, and shows the link `/receive/<session ID>#k=<key>`.
+3. The receiver opens the link. Their browser reads the key from the fragment, removes it from the address bar, fetches the offer and posts an answer.
+4. When the data channel opens, the sender streams an encrypted metadata message (name, size, type), the file as encrypted chunks with backpressure, and an encrypted end message. Every message fits in 64 KiB, the SCTP message size all WebRTC peers accept.
+5. The receiver decrypts and checks every message, and shows the download button only after the end message verifies.
 
 <p align="center">
-  <img src="docs/images/transfer.png" width="720" alt="Sender card after creating a session next to the receiver card joining with the same connection ID">
+  <img src="docs/images/transfer.png" width="720" alt="Sender card after the transfer next to the receiver card showing quarterly-report.pdf decrypted and verified with a Download button">
   <br>
-  <sub>Sender (left) after creating a session; receiver (right) joining with the connection ID.</sub>
+  <sub>Sender after the transfer (left); receiver with the decrypted, verified file (right).</sub>
 </p>
 
 ## Security model
 
-- **Encryption is WebRTC's DTLS, nothing more.** Browsers always run data channels over DTLS, so file bytes are encrypted between the two peers with keys from a per-connection DTLS handshake. Neither client adds application-layer encryption: the web client sends raw file chunks, and the desktop client seeds the original file.
-- **The key exchange trusts the signaling server.** Each browser checks the DTLS handshake against the certificate fingerprint in the other side's SDP, and that SDP travels through the API. Session endpoints have no authentication, and the fingerprint is never checked out of band (no key or fingerprint travels in the link or URL fragment). A malicious or compromised signaling server, or anyone who knows a session ID, can replace the offer or answer and sit in the middle.
-- **Session IDs are not random.** Each one is the first 16 hex characters of a SHA-256 over the user agent, the current millisecond timestamp and a truncated hash of the client IP, not output from a CSPRNG.
-- **The server-side key pair is unused.** Creating a session also generates a libsodium `crypto_box` key pair: the public key is returned to the client and the private key is stored in Redis. Neither client uses these keys, and the chunk-encryption helpers in `apps/backend-fastify/src/utils/webrtc.ts` are never called. Because the server generates and holds the private key, wiring them in as written would still not be end-to-end encryption.
-- **Desktop transfers are BitTorrent.** WebTorrent's TCP and uTP connections use BitTorrent protocol encryption (RC4 obfuscation that falls back to plaintext, WebTorrent's default), and its WebRTC peers use DTLS. Torrents are announced to public trackers and the DHT, so anyone who learns the magnet URI, the signaling server included, can download the file while the sender is seeding.
+**What is end-to-end encrypted.** The file contents and its metadata (name, size and MIME type), using AES-GCM with a 256-bit key through WebCrypto ([`apps/web/lib/transfer-crypto.ts`](apps/web/lib/transfer-crypto.ts)).
 
-In short, web transfers are encrypted in transit between the two browsers and the signaling API never receives file contents, but confidentiality depends on trusting the signaling server. Desktop transfers may fall back to plaintext. The web app's "How It Works" page describes in-browser AES-GCM 256-bit encryption; that is not implemented.
+- **Key.** The sender's browser generates a new key for every transfer and puts it, base64url-encoded, in the link's fragment (`#k=...`). Browsers never send the fragment to a server, and no code path posts or logs it. The receiver imports the key as decrypt-only and non-extractable, then removes the fragment from the address bar and the Next.js router state.
+- **Messages.** Each data-channel message is `version || type || IV || ciphertext+tag`. The 96-bit IV is a random 4-byte prefix per sender plus a 64-bit sequence number, so it never repeats under a key. The additional authenticated data binds the protocol version, message type, sequence number and session ID, so an altered, reordered, duplicated, dropped or spliced message fails to decrypt.
+- **Completeness.** The last message carries the chunk count and byte length, which must match what was received and the size in the metadata. Any failure aborts the transfer and discards what arrived; a partial file is never offered.
+- WebRTC's DTLS also encrypts the transport. Because the content is encrypted with a key the server never has, a signaling server that tampers with the SDP can disrupt a transfer but cannot read it.
+
+**What the signaling server still sees.** A random 128-bit session ID; the SDP offer and answer, including ICE candidates (IP addresses) and DTLS fingerprints; client IP addresses and request timing; and, like anyone on the network path, the approximate file size from the traffic volume. Sessions expire after 24 hours.
+
+**Trust assumptions.**
+
+- Anyone who holds the full link can receive the file, so share it over a channel you trust. The server accepts one answer per session, so the first receiver to connect wins and a link works once.
+- There is no authentication beyond possession of the link, so the receiver cannot prove who sent the file.
+- The JavaScript is served by whoever hosts the web app, and code from a malicious host could leak the key. This applies to any browser-based encryption.
+
+**Not covered.** The desktop app transfers files with WebTorrent and has no application-layer encryption: BitTorrent peers use RC4 obfuscation that can fall back to plaintext, and torrents are announced to public trackers and the DHT, so anyone who learns the magnet URI (the signaling server included) can download the file while it is seeded. The Go API is not used by either client.
 
 ## Apps
 
-| Path                                           | What                                                                                                      | Stack                                    |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [`apps/web`](apps/web)                         | Web client: browser-to-browser transfer over a WebRTC data channel                                        | Next.js 16, React 19, shadcn/ui          |
-| [`apps/electron`](apps/electron)               | Desktop client: WebTorrent transfers from the Electron main process                                       | Electron 45, React, Vite, WebTorrent     |
-| [`apps/backend-fastify`](apps/backend-fastify) | Signaling API used by both clients                                                                        | Fastify, Redis                           |
-| [`apps/backend-go`](apps/backend-go)           | Separate API with device auth, WebRTC rooms and server-relayed chunk uploads; not yet used by the clients | Go, Gin, sqlc, Postgres, Redis, RabbitMQ |
+| Path                                           | What                                                                                                      | Stack                                      |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| [`apps/web`](apps/web)                         | Web client: end-to-end encrypted browser-to-browser transfers                                             | Next.js 16, React 19, shadcn/ui, WebCrypto |
+| [`apps/electron`](apps/electron)               | Desktop client: WebTorrent transfers from the Electron main process (not end-to-end encrypted)            | Electron 45, React, Vite, WebTorrent       |
+| [`apps/backend-fastify`](apps/backend-fastify) | Signaling API used by both clients                                                                        | Fastify, Redis                             |
+| [`apps/backend-go`](apps/backend-go)           | Separate API with device auth, WebRTC rooms and server-relayed chunk uploads; not yet used by the clients | Go, Gin, sqlc, Postgres, Redis, RabbitMQ   |
 
 ## Downloads
 
-Desktop builds from the [latest release](https://github.com/piyush-gambhir/safeshare/releases/latest) (v0.1.1). They are unsigned and not notarized.
+Desktop builds from the [latest release](https://github.com/piyush-gambhir/safeshare/releases/latest) (v0.1.1). They are unsigned and not notarized, and they predate the web client's encryption, which they do not use.
 
 | Platform    | Download                                                                                                                            |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -97,28 +100,29 @@ pnpm dev:web
 pnpm dev:electron
 ```
 
-The backend's CORS policy only allows `FRONTEND_URL`. For the desktop client, start it with `FRONTEND_URL='*' pnpm dev:backend-fastify` instead; share links then lose their host, but the connection ID still works.
+To try a transfer, open http://localhost:3000, choose a file, click **Create share link**, and open the link in another browser window. WebCrypto only works in a secure context, so serve the web app over HTTPS anywhere other than `localhost`.
 
-To try the web flow, open http://localhost:3000 in two windows. In the first, choose a file and click **Share File**; in the second, paste the connection ID and click **Join Session**.
+The backend's CORS policy only allows `FRONTEND_URL`. For the desktop client, start it with `FRONTEND_URL='*' pnpm dev:backend-fastify` instead.
 
-| Variable                                     | App             | Default                    | Purpose                                       |
-| -------------------------------------------- | --------------- | -------------------------- | --------------------------------------------- |
-| `PORT`                                       | backend-fastify | `8000`                     | API port                                      |
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | backend-fastify | `localhost`, `6379`, empty | Session store                                 |
-| `FRONTEND_URL`                               | backend-fastify | `http://localhost:3000`    | CORS origin and base URL of share links       |
-| `NEXT_PUBLIC_API_URL`                        | web             | `http://localhost:8000/v1` | Signaling API base URL, inlined at build time |
+| Variable                                     | App             | Default                    | Purpose                                         |
+| -------------------------------------------- | --------------- | -------------------------- | ----------------------------------------------- |
+| `PORT`                                       | backend-fastify | `8000`                     | API port                                        |
+| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | backend-fastify | `localhost`, `6379`, empty | Session store                                   |
+| `FRONTEND_URL`                               | backend-fastify | `http://localhost:3000`    | CORS origin (and the desktop app's share links) |
+| `NEXT_PUBLIC_API_URL`                        | web             | `http://localhost:8000/v1` | Signaling API base URL, inlined at build time   |
 
 The Go API runs with `make docker-up` in `apps/backend-go` (Postgres, Redis, RabbitMQ, migrations, and the API on port 8080 with Swagger at `/swagger/index.html`).
 
-CI ([`ci.yml`](.github/workflows/ci.yml)) lints and typechecks every Node app, runs the Electron transfer tests (a loopback WebTorrent seed and download with a byte comparison), and builds the web app, the Electron bundle and the Fastify backend.
+`pnpm --filter ./apps/web test` runs the encryption unit tests. CI ([`ci.yml`](.github/workflows/ci.yml)) also lints and typechecks every Node app, runs the Electron transfer tests, and builds the web app, the Electron bundle and the Fastify backend.
 
 ## Status
 
 This is a prototype. Known gaps:
 
-- **Web transfers stall at "connecting".** The offer and answer are posted before ICE gathering finishes, and candidates gathered later are never sent, so the peers have no addresses to try. The sender also marks the session connected as soon as the answer arrives, before the data channel opens (`apps/web/components/file-transfer.tsx`).
-- **The share link crashes.** `/receive/<id>` is left over from the WebTorrent design: it throws in the browser on load and expects a magnet URI rather than a WebRTC session. Receivers use the connection ID on the home page instead.
-- **The desktop client's API URL is fixed** to `http://localhost:8000/v1`, it needs the wildcard CORS setting above, and its progress bar does not update.
+- **No relay.** Only STUN is configured, so two devices that cannot reach each other directly (for example, both behind symmetric NATs) will not connect.
+- **Memory-bound receiving.** The receiver holds the whole file in memory until it is saved.
+- **One shot per link.** Each link serves one receiver, and an interrupted transfer starts over with a new link.
+- **Desktop client.** Its API URL is fixed to `http://localhost:8000/v1`, it needs the wildcard CORS setting above, its progress bar does not update, and it cannot exchange files with the web client.
 
 ## Docs
 
