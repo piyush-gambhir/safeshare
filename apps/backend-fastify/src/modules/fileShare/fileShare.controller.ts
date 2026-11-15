@@ -14,7 +14,7 @@ import {
 } from "./fileShare.schema.js";
 
 const sessionKey = (sessionId: string) => `session:${sessionId}`;
-// A separate namespace, so no session ID can address a signal key.
+
 const signalKey = (sessionId: string, type: "offer" | "answer") =>
   `signal:${sessionId}:${type}`;
 
@@ -23,8 +23,8 @@ async function loadSession(sessionId: string): Promise<PeerSession | null> {
   return data ? (JSON.parse(data) as PeerSession) : null;
 }
 
-// Updates keep the original TTL, so the advertised expiresAt stays accurate,
-// and never recreate a session that expired in the meantime (XX).
+
+
 async function updateSession(session: PeerSession): Promise<boolean> {
   const result = await redis.set(
     sessionKey(session.sessionId),
@@ -36,8 +36,8 @@ async function updateSession(session: PeerSession): Promise<boolean> {
 }
 
 export async function initiateShareHandler(): Promise<InitiateShareResponse> {
-  // 128 bits from the OS CSPRNG. Knowing a session ID is not enough to read a
-  // web transfer: the decryption key travels only in the link's URL fragment.
+
+
   const sessionId = crypto.randomBytes(16).toString("hex");
   const now = Date.now();
   const session: PeerSession = {
@@ -78,8 +78,8 @@ export async function signalHandler(
     return reply.code(409).send({ error: "Session has no offer yet" });
   }
 
-  // SET NX claims the slot atomically: one offer and one answer per session,
-  // and the first receiver to answer wins. The slot expires with the session.
+
+
   const claimed = await redis.set(
     signalKey(sessionId, type),
     sdp,
@@ -92,7 +92,7 @@ export async function signalHandler(
   }
 
   session.status = type === "offer" ? "waiting" : "answered";
-  // The session (and the just-claimed slot) expired while handling the request.
+
   if (!(await updateSession(session))) {
     return reply.code(404).send({ error: "Session not found" });
   }
@@ -164,7 +164,7 @@ export async function handleWebSocketConnection(
 ): Promise<void> {
   const { sessionId } = request.params;
 
-  // Set up subscription for status updates
+
   const statusUpdateInterval = setInterval(async () => {
     const session = await loadSession(sessionId);
     if (!session) {
@@ -182,7 +182,7 @@ export async function handleWebSocketConnection(
     );
   }, 2000);
 
-  // Clean up on socket close
+
   connection.socket.on("close", () => {
     clearInterval(statusUpdateInterval);
   });

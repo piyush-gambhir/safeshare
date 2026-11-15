@@ -28,8 +28,8 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
   - package-ecosystem: npm
-    # No root "/" entry: the root has no dependencies, and with
-    # sharedWorkspaceLockfile: false it cannot update the per-app lockfiles.
+
+
     directories:
       - "/apps/web"
       - "/apps/electron"
@@ -43,6 +43,6 @@ updates:
         update-types: [minor, patch]
     ignore:
       # typescript-eslint (lint in all three apps) needs the TS JS API, which TS 7.0 does not ship.
-      # TS 7 tsc already runs through the npm:typescript@7 alias. Drop this once they support 7.x.
+
       - dependency-name: typescript
         versions: ["7.x"]

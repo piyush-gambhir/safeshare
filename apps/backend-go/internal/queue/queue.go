@@ -15,13 +15,11 @@ const (
 	QueueCleanup           = "cleanup"
 )
 
-// RabbitMQ handles the connection and channel to RabbitMQ
 type RabbitMQ struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
 }
 
-// NewRabbitMQ creates a new RabbitMQ connection and sets up exchanges and queues
 func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 	conn, err := amqp.Dial(cfg.RabbitMQURL)
 	if err != nil {
@@ -34,15 +32,14 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 		return nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
 
-	// Declare exchange
 	err = ch.ExchangeDeclare(
-		ExchangeTransfers, // name
-		"topic",           // type
-		true,              // durable
-		false,             // auto-deleted
-		false,             // internal
-		false,             // no-wait
-		nil,               // arguments
+		ExchangeTransfers,
+		"topic",
+		true,
+		false,
+		false,
+		false,
+		nil,
 	)
 	if err != nil {
 		ch.Close()
@@ -50,7 +47,6 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 		return nil, fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
-	// Declare queues
 	queues := []string{
 		QueueTransferCreated,
 		QueueTransferCompleted,
@@ -60,12 +56,12 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 
 	for _, queue := range queues {
 		_, err = ch.QueueDeclare(
-			queue, // name
-			true,  // durable
-			false, // delete when unused
-			false, // exclusive
-			false, // no-wait
-			nil,   // arguments
+			queue,
+			true,
+			false,
+			false,
+			false,
+			nil,
 		)
 		if err != nil {
 			ch.Close()
@@ -73,13 +69,12 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 			return nil, fmt.Errorf("failed to declare queue %s: %w", queue, err)
 		}
 
-		// Bind queue to exchange
 		err = ch.QueueBind(
-			queue,             // queue name
-			queue,             // routing key
-			ExchangeTransfers, // exchange
-			false,             // no-wait
-			nil,               // arguments
+			queue,
+			queue,
+			ExchangeTransfers,
+			false,
+			nil,
 		)
 		if err != nil {
 			ch.Close()
@@ -94,7 +89,6 @@ func NewRabbitMQ(cfg *config.Config) (*RabbitMQ, error) {
 	}, nil
 }
 
-// Close closes the RabbitMQ connection and channel
 func (r *RabbitMQ) Close() error {
 	if r.channel != nil {
 		r.channel.Close()
@@ -105,7 +99,6 @@ func (r *RabbitMQ) Close() error {
 	return nil
 }
 
-// Channel returns the AMQP channel
 func (r *RabbitMQ) Channel() *amqp.Channel {
 	return r.channel
 }

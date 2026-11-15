@@ -12,14 +12,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Consumer handles consuming messages from RabbitMQ
 type Consumer struct {
 	channel     *amqp.Channel
 	queries     *repository.Queries
 	redisClient *redis.Client
 }
 
-// NewConsumer creates a new Consumer instance
 func NewConsumer(channel *amqp.Channel, queries *repository.Queries, redisClient *redis.Client) *Consumer {
 	return &Consumer{
 		channel:     channel,
@@ -28,9 +26,7 @@ func NewConsumer(channel *amqp.Channel, queries *repository.Queries, redisClient
 	}
 }
 
-// StartConsumers starts all consumers
 func (c *Consumer) StartConsumers(ctx context.Context) error {
-	// Setup consumers for each queue
 	if err := c.consumeCleanup(ctx); err != nil {
 		return err
 	}
@@ -39,22 +35,19 @@ func (c *Consumer) StartConsumers(ctx context.Context) error {
 		return err
 	}
 
-	// Add more consumers as needed
-
 	return nil
 }
 
-// consumeCleanup consumes cleanup events
 func (c *Consumer) consumeCleanup(ctx context.Context) error {
 	msgs, err := c.channel.ConsumeWithContext(
 		ctx,
-		QueueCleanup, // queue
-		"",           // consumer
-		false,        // auto-ack
-		false,        // exclusive
-		false,        // no-local
-		false,        // no-wait
-		nil,          // args
+		QueueCleanup,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to register a consumer for cleanup: %w", err)
@@ -65,21 +58,19 @@ func (c *Consumer) consumeCleanup(ctx context.Context) error {
 			var event CleanupEvent
 			if err := json.Unmarshal(d.Body, &event); err != nil {
 				log.Printf("Error unmarshaling cleanup event: %v", err)
-				d.Nack(false, true) // Requeue the message
+				d.Nack(false, true)
 				continue
 			}
 
-			// Delete expired transfers and sessions from database
 			err := c.cleanupExpiredData(ctx)
 			if err != nil {
 				log.Printf("Error cleaning up expired data: %v", err)
-				d.Nack(false, true) // Requeue the message
+				d.Nack(false, true)
 				continue
 			}
 
-			d.Ack(false) // Acknowledge the message
+			d.Ack(false)
 
-			// Schedule the next cleanup
 			nextCleanup := time.Now().Add(1 * time.Hour)
 			producer := NewProducer(c.channel)
 			producer.PublishCleanup(ctx, CleanupEvent{RunAt: nextCleanup})
@@ -89,17 +80,16 @@ func (c *Consumer) consumeCleanup(ctx context.Context) error {
 	return nil
 }
 
-// consumeTransferExpired consumes transfer expired events
 func (c *Consumer) consumeTransferExpired(ctx context.Context) error {
 	msgs, err := c.channel.ConsumeWithContext(
 		ctx,
-		QueueTransferExpired, // queue
-		"",                   // consumer
-		false,                // auto-ack
-		false,                // exclusive
-		false,                // no-local
-		false,                // no-wait
-		nil,                  // args
+		QueueTransferExpired,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to register a consumer for transfer expired: %w", err)
@@ -110,50 +100,43 @@ func (c *Consumer) consumeTransferExpired(ctx context.Context) error {
 			var event TransferExpiredEvent
 			if err := json.Unmarshal(d.Body, &event); err != nil {
 				log.Printf("Error unmarshaling transfer expired event: %v", err)
-				d.Nack(false, true) // Requeue the message
+				d.Nack(false, true)
 				continue
 			}
 
-			// Clean up Redis chunks
 			err := c.cleanupTransferChunks(ctx, event.TransferID)
 			if err != nil {
 				log.Printf("Error cleaning up transfer chunks: %v", err)
-				d.Nack(false, true) // Requeue the message
+				d.Nack(false, true)
 				continue
 			}
 
-			d.Ack(false) // Acknowledge the message
+			d.Ack(false)
 		}
 	}()
 
 	return nil
 }
 
-// cleanupExpiredData cleans up expired transfers and sessions
 func (c *Consumer) cleanupExpiredData(ctx context.Context) error {
-	// Delete expired WebRTC sessions
 	if err := c.queries.DeleteExpiredWebRTCSessions(ctx); err != nil {
 		return fmt.Errorf("failed to delete expired WebRTC sessions: %w", err)
 	}
 
-	// Delete expired sessions
 	if err := c.queries.DeleteExpiredSessions(ctx); err != nil {
 		return fmt.Errorf("failed to delete expired sessions: %w", err)
 	}
 
-	// Delete expired transfers
 	if err := c.queries.DeleteExpiredTransfers(ctx); err != nil {
 		return fmt.Errorf("failed to delete expired transfers: %w", err)
 	}
 
-	// Clean up WebRTC signals in Redis
 	pattern := "webrtc:*"
 	keys, err := c.redisClient.Keys(ctx, pattern).Result()
 	if err != nil {
 		return fmt.Errorf("failed to get WebRTC signal keys: %w", err)
 	}
 
-	// Find and delete expired keys
 	for _, key := range keys {
 		ttl, err := c.redisClient.TTL(ctx, key).Result()
 		if err != nil {
@@ -161,7 +144,6 @@ func (c *Consumer) cleanupExpiredData(ctx context.Context) error {
 			continue
 		}
 
-		// Delete keys with negative TTL (expired) or very short TTL (< 1 hour)
 		if ttl < time.Hour {
 			_, err := c.redisClient.Del(ctx, key).Result()
 			if err != nil {
@@ -173,16 +155,13 @@ func (c *Consumer) cleanupExpiredData(ctx context.Context) error {
 	return nil
 }
 
-// cleanupTransferChunks cleans up transfer chunks from Redis
 func (c *Consumer) cleanupTransferChunks(ctx context.Context, transferID string) error {
-	// Get all chunk keys for this transfer
 	pattern := fmt.Sprintf("chunk:%s:*", transferID)
 	keys, err := c.redisClient.Keys(ctx, pattern).Result()
 	if err != nil {
 		return fmt.Errorf("failed to get chunk keys: %w", err)
 	}
 
-	// Delete all chunks
 	if len(keys) > 0 {
 		if err := c.redisClient.Del(ctx, keys...).Err(); err != nil {
 			return fmt.Errorf("failed to delete chunks: %w", err)

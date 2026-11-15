@@ -22,7 +22,7 @@ export default function QRCode({
     useEffect(() => {
         if (!canvasRef.current) return;
 
-        // Import QRCode.js dynamically
+
         import('qrcode').then((QRCode: any) => {
             QRCode.toCanvas(
                 canvasRef.current,
@@ -34,7 +34,7 @@ export default function QRCode({
                         dark: fgColor,
                         light: bgColor,
                     },
-                    errorCorrectionLevel: 'H', // High - allows for logo overlay
+                    errorCorrectionLevel: 'H',
                 },
                 async (error: Error | null) => {
                     if (error) {
@@ -42,7 +42,7 @@ export default function QRCode({
                         return;
                     }
 
-                    // If a logo URL is provided, add it to the center of the QR code
+
                     if (logoUrl && canvasRef.current) {
                         const canvas = canvasRef.current;
                         const ctx = canvas.getContext('2d');
@@ -52,12 +52,12 @@ export default function QRCode({
                             logo.crossOrigin = 'anonymous';
 
                             logo.onload = () => {
-                                // Calculate logo size (25% of QR code)
+
                                 const logoSize = size * 0.25;
                                 const logoX = (size - logoSize) / 2;
                                 const logoY = (size - logoSize) / 2;
 
-                                // Draw white background for logo
+
                                 ctx.fillStyle = bgColor;
                                 ctx.fillRect(
                                     logoX - 5,
@@ -66,7 +66,7 @@ export default function QRCode({
                                     logoSize + 10,
                                 );
 
-                                // Draw logo
+
                                 ctx.drawImage(
                                     logo,
                                     logoX,

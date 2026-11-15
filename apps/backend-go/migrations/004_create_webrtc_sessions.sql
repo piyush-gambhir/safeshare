@@ -6,7 +6,7 @@ CREATE TABLE webrtc_sessions (
     receiver_id UUID REFERENCES users(id),
     room_id TEXT NOT NULL UNIQUE,
     sdp_offer TEXT,
-    status TEXT NOT NULL, -- 'created', 'joined', 'connected', 'completed', 'error'
+    status TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ NOT NULL

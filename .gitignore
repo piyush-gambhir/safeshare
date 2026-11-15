@@ -1,15 +1,12 @@
-# dependencies
 node_modules/
 .pnpm-store/
 
-# build outputs
 .next/
 dist/
 dist-electron/
 out/
 build/
 
-# env
 .env
 .env.local
 .env.*.local
@@ -20,11 +17,9 @@ build/
 !.env.development
 !.env.production
 
-# misc
 .DS_Store
 *.log
 .turbo/
 coverage/
 
-# Local bundle graph exports
 /.bundle-analysis/

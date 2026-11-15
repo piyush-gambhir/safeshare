@@ -16,31 +16,27 @@ type Config struct {
 	DatabaseURL    string
 	RedisURL       string
 	RabbitMQURL    string
-	MaxFileSize    int64 // in bytes
+	MaxFileSize    int64
 	FileExpiration time.Duration
 	JWTSecret      string
 	CORSOrigins    []string
 }
 
-// LoadConfig loads configuration from environment variables
 func LoadConfig() (*Config, error) {
-	// Load .env file if it exists
 	godotenv.Load()
 
-	// Set default values
 	config := &Config{
 		Environment:    getEnv("ENVIRONMENT", "development"),
 		ServerPort:     getEnv("PORT", "8080"),
 		DatabaseURL:    getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/safeshare?sslmode=disable"),
 		RedisURL:       getEnv("REDIS_URL", "redis://localhost:6379/0"),
 		RabbitMQURL:    getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
-		MaxFileSize:    getEnvAsInt64("MAX_FILE_SIZE", 5*1024*1024*1024), // 5GB default
+		MaxFileSize:    getEnvAsInt64("MAX_FILE_SIZE", 5*1024*1024*1024),
 		FileExpiration: getEnvAsDuration("FILE_EXPIRATION", 24*time.Hour),
 		JWTSecret:      getEnv("JWT_SECRET", "your-secret-key"),
 		CORSOrigins:    getEnvAsSlice("CORS_ORIGINS", []string{"*"}),
 	}
 
-	// Validate required config
 	if config.JWTSecret == "your-secret-key" && config.Environment == "production" {
 		return nil, fmt.Errorf("JWT_SECRET must be set in production environment")
 	}

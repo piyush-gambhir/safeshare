@@ -10,7 +10,7 @@ import {
 import { $ref, SESSION_ID_PATTERN } from "./fileShare.schema.js";
 
 export async function fileShareRoutes(server: FastifyInstance) {
-  // Route to initiate file sharing
+
   server.post(
     "/initiate",
     {
@@ -27,7 +27,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
     initiateShareHandler,
   );
 
-  // Route for the web client to store its WebRTC offer or answer (SDP)
+
   server.post(
     "/signal",
     {
@@ -45,7 +45,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
     signalHandler,
   );
 
-  // Route for the desktop client to store its WebTorrent magnet URI
+
   server.post(
     "/update-torrent",
     {
@@ -62,7 +62,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
     updateTorrentHandler,
   );
 
-  // Route to get session info for receiver
+
   server.get(
     "/session/:sessionId",
     {
@@ -85,7 +85,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
     getSessionInfoHandler,
   );
 
-  // WebSocket endpoint for connection status updates
+
   server.get(
     "/status/:sessionId",
     {
@@ -94,7 +94,7 @@ export async function fileShareRoutes(server: FastifyInstance) {
     handleWebSocketConnection,
   );
 
-  // Route to update peer status
+
   server.post(
     "/update-status",
     {

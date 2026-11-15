@@ -2,24 +2,24 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-# Each app keeps its own pnpm-lock.yaml (Dependabot updates them per directory).
+
 sharedWorkspaceLockfile: false
 
 allowBuilds:
-  # Downloads the Electron runtime needed to launch and package the desktop app.
+
   electron: true
-  # Downloads the native WebRTC binding WebTorrent uses in the Electron main process.
+
   node-datachannel: true
-  # These ship prebuilt binaries (or get them as optional deps), so their
-  # build-from-source fallback is not needed.
+
+
   bufferutil: false
   sharp: false
   unrs-resolver: false
   utf-8-validate: false
   utp-native: false
-  # Its only script is a stray `npx only-allow pnpm` preinstall.
+
   ip-set: false
-  # Picks a 7-Zip binary for Squirrel.Windows builds, which this app does not use.
+
   electron-winstaller: false
 minimumReleaseAgeExclude:
   - follow-redirects@1.16.2
@@ -39,7 +39,7 @@ minimumReleaseAgeExclude:
 
 overrides:
   "follow-redirects@>=1.16.0 <=1.16.1": 1.16.2
-  # The maintained fork fixes CVE-2024-29415 and preserves the tracker IP API.
+
   "bittorrent-tracker@11.2.3>ip": "npm:@webpod/ip@0.6.1"
   "undici@>=6.5.0 <6.29.1": 6.29.1
   "undici@>=7.0.0 <7.30.1": 7.30.1
@@ -48,5 +48,5 @@ overrides:
   "fast-uri@>=4.0.0 <4.2.3": 4.2.3
   "ip-address@<10.7.4": 10.7.4
 
-# electron-builder needs physical dependencies when assembling the desktop app.
+
 nodeLinker: hoisted
