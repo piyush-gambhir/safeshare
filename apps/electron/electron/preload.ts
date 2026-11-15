@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
+
+
 contextBridge.exposeInMainWorld("electron", {
     initializeWebtorrent: () => ipcRenderer.invoke("initialize-webtorrent"),
     seedFile: (file: File) =>
@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("electron", {
     getDownloadsPath: () => ipcRenderer.invoke("get-downloads-path"),
 });
 
-// --------- Expose some API to the Renderer process ---------
+
 contextBridge.exposeInMainWorld("ipcRenderer", {
     on(...args: Parameters<typeof ipcRenderer.on>) {
         const [channel, listener] = args;
@@ -32,6 +32,6 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
         return ipcRenderer.invoke(channel, ...omit);
     },
 
-    // You can expose other APTs you need here.
-    // ...
+
+
 });

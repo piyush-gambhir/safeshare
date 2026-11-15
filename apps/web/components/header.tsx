@@ -29,7 +29,7 @@ export default function Header() {
                     </Link>
                 </div>
 
-                {/* Desktop Navigation */}
+                {                        }
                 <div className="hidden items-center space-x-4 md:flex">
                     <nav className="flex items-center space-x-4">
                         <Link
@@ -74,7 +74,7 @@ export default function Header() {
                     </nav>
                 </div>
 
-                {/* Mobile Menu Button */}
+                {                        }
                 <div className="flex items-center gap-2 md:hidden">
                     <div className="mr-2 flex items-center gap-1.5">
                         <Shield className="h-3 w-3 text-green-600 dark:text-green-400" />
@@ -97,7 +97,7 @@ export default function Header() {
                 </div>
             </div>
 
-            {/* Mobile Menu */}
+            {                 }
             <AnimatePresence>
                 {mobileMenuOpen && (
                     <motion.div

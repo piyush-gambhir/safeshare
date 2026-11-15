@@ -1,4 +1,4 @@
-// Retains the original Lucide 0.487 brand shapes. See brand-icons.LICENSE.
+
 import { createLucideIcon } from 'lucide-react';
 
 export const Github = createLucideIcon('github', [

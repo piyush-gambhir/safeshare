@@ -13,7 +13,7 @@ import {
   FRONTEND_URL,
 } from "./utils/constants.js";
 
-// Initialize Redis client
+
 export const redis = new Redis({
   host: REDIS_HOST,
   port: REDIS_PORT,
@@ -35,7 +35,7 @@ export function buildServer() {
     allowedHeaders: ["Content-Type", "Authorization"],
   });
 
-  // Register swagger
+
   server.register(fastifySwagger, {
     openapi: {
       info: {
@@ -49,15 +49,15 @@ export function buildServer() {
           description: "Development server",
         },
       ],
-      // components: {
-      //   securitySchemes: {
-      //     bearerAuth: {
-      //       type: "http",
-      //       scheme: "bearer",
-      //       bearerFormat: "JWT",
-      //     },
-      //   },
-      // },
+
+
+
+
+
+
+
+
+
     },
   });
 
@@ -69,21 +69,21 @@ export function buildServer() {
     },
   });
 
-  // Register WebSocket plugin
+
   server.register(fastifyWebsocket);
 
-  // Add schemas
+
   for (const schema of [...fileShareSchemas]) {
     server.addSchema(schema);
   }
 
-  // Register health check route
+
   server.get("/v1/healthcheck", async () => ({ status: "ok" }));
 
-  // Register routes
+
   server.register(fileShareRoutes, { prefix: "v1/share" });
 
-  // Add hook to handle WebSocket connections for status updates
+
   server.ready().then(() => {
     console.log("Server is ready");
   });

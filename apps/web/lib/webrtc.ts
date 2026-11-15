@@ -1,5 +1,5 @@
-// WebRTC plumbing: peer connection setup, non-trickle ICE, and sending or
-// receiving an end-to-end encrypted file over a data channel.
+
+
 import {
     CHUNK_SIZE,
     type FileMetadata,
@@ -15,8 +15,8 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 const ICE_GATHERING_TIMEOUT_MS = 5000;
 
-// Sending pauses above HIGH_WATER buffered bytes and resumes below LOW_WATER,
-// well under the browsers' data-channel send-buffer limits.
+
+
 const HIGH_WATER = 4 * 1024 * 1024;
 const LOW_WATER = 1024 * 1024;
 
@@ -24,9 +24,9 @@ export function createPeerConnection(): RTCPeerConnection {
     return new RTCPeerConnection({ iceServers: ICE_SERVERS });
 }
 
-// The signaling API stores one SDP per side (no trickle ICE), so wait until the
-// local description includes the gathered candidates. After the timeout, go
-// ahead with the candidates found so far.
+
+
+
 export function waitForIceGathering(
     pc: RTCPeerConnection,
     timeoutMs = ICE_GATHERING_TIMEOUT_MS,
@@ -51,7 +51,7 @@ function closedError(): TransferError {
 }
 
 function waitForBuffer(channel: RTCDataChannel, threshold: number): Promise<void> {
-    // A closed channel can keep a nonzero bufferedAmount and fires no more events.
+
     if (channel.readyState !== 'open') return Promise.reject(closedError());
     if (channel.bufferedAmount <= threshold) return Promise.resolve();
     return new Promise((resolve, reject) => {
@@ -73,8 +73,8 @@ function waitForBuffer(channel: RTCDataChannel, threshold: number): Promise<void
     });
 }
 
-// Sends metadata, every chunk and the end message, all encrypted, then waits
-// until the channel's buffer has drained to the network.
+
+
 export async function sendEncryptedFile(
     channel: RTCDataChannel,
     file: File,
@@ -122,10 +122,10 @@ export interface ReceiveHandlers {
     onError: (error: Error) => void;
 }
 
-// Decrypts messages as they arrive. A decryption failure, an unexpected
-// message, or the channel closing before the authenticated end message aborts
-// the transfer and drops everything received. The returned function cancels
-// the transfer silently, for example when the peer connection fails.
+
+
+
+
 export function receiveEncryptedFile(
     channel: RTCDataChannel,
     key: CryptoKey,
@@ -174,7 +174,7 @@ export function receiveEncryptedFile(
             }
         }, fail);
     };
-    // Messages may still be decrypting when the channel closes.
+
     channel.onclose = () => {
         void pending.then(() =>
             fail(

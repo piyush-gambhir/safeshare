@@ -81,10 +81,10 @@ export default function ReceiveTransfer({ sessionId }: { sessionId: string }) {
         checkedRef.current = true;
 
         const encodedKey = keyFromFragment(window.location.hash);
-        // Drop the key from the address bar, history and the Next.js router.
-        // A null state goes through Next's patched replaceState, which also
-        // updates the router's URL; the timeout lets the router install that
-        // patch, since its effect runs after this one.
+
+
+
+
         if (window.location.hash) {
             setTimeout(() =>
                 window.history.replaceState(

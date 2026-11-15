@@ -57,7 +57,7 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
     });
 }
 
-// Polls the signaling API until the receiver has posted its answer.
+
 async function waitForAnswer(
     sessionId: string,
     signal: AbortSignal,
@@ -70,7 +70,7 @@ async function waitForAnswer(
             if (session.answer && !signal.aborted) return session.answer;
         } catch (error) {
             if (error instanceof ApiError && error.status === 404) throw error;
-            // Keep waiting through transient network errors and aborts.
+
         }
     }
     return null;
@@ -102,8 +102,8 @@ export default function FileTransfer() {
         let pc: RTCPeerConnection | null = null;
         let done = false;
 
-        // Reset and unmount abort the controller; setup steps that finish
-        // afterwards must close anything they created and stop.
+
+
         const cancelled = () => {
             if (!abort.signal.aborted) return false;
             pc?.close();
@@ -145,7 +145,7 @@ export default function FileTransfer() {
                     })
                     .catch(fail);
             };
-            // The receiver closes the connection once it has verified the file.
+
             channel.onclose = () => {
                 if (done) peer.close();
             };
@@ -166,8 +166,8 @@ export default function FileTransfer() {
             const encodedKey = await exportTransferKey(key);
             if (cancelled()) return;
 
-            // The key goes only into the URL fragment, which browsers never send
-            // to a server.
+
+
             setLink(
                 `${window.location.origin}/receive/${session.sessionId}#k=${encodedKey}`,
             );
