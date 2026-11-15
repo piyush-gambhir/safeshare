@@ -16,7 +16,7 @@ for (const app of ['web', 'electron']) {
     try {
       isPublic = ip.isPublic(address);
     } catch {
-      // The replacement may reject ambiguous forms instead of classifying them.
+
     }
     assert.equal(isPublic, false, `${app}: ${address} must not be considered public`);
   }

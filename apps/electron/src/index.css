@@ -73,7 +73,7 @@
     * {
         @apply border-border;
     }
-    /* Preserve the native file button after the Preflight reset. */
+
     input[type="file"]::file-selector-button {
         padding: 1px 6px;
         color: #000;

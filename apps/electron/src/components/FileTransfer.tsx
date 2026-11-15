@@ -25,7 +25,7 @@ export default function FileTransfer() {
     const [connectionId, setConnectionId] = useState<string>("");
     const { toast } = useToast();
 
-    // Handle file selection
+
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
@@ -33,7 +33,7 @@ export default function FileTransfer() {
         }
     };
 
-    // Initialize as host (sender)
+
     const initializeAsHost = async () => {
         if (!selectedFile) return;
 
@@ -41,18 +41,18 @@ export default function FileTransfer() {
             setIsUploading(true);
             setStatus("initiating");
 
-            // Create file metadata
+
             const fileMetadata: FileMetadata = {
                 name: selectedFile.name,
                 size: selectedFile.size,
                 type: selectedFile.type,
             };
 
-            // Initiate share session
+
             const shareResponse = await initiateShare(fileMetadata);
             setShareLink(shareResponse.shareableLink);
 
-            // Initialize WebTorrent and seed the file
+
             const { initializeWebtorrent, seedFile } = window.electron;
             const initialized = await initializeWebtorrent();
             if (!initialized.success) throw new Error(initialized.error);
@@ -60,7 +60,7 @@ export default function FileTransfer() {
             if (!seeded.success) throw new Error(seeded.error);
             const { magnetUri, infoHash } = seeded;
 
-            // Update session with torrent info
+
             await updateTorrent({
                 sessionId: shareResponse.sessionId,
                 torrentInfoHash: infoHash,
@@ -85,7 +85,7 @@ export default function FileTransfer() {
         }
     };
 
-    // Initialize as guest (receiver)
+
     const initializeAsGuest = async () => {
         if (!connectionId) return;
 
@@ -93,15 +93,15 @@ export default function FileTransfer() {
             setIsDownloading(true);
             setStatus("initiating");
 
-            // Get session information
+
             const sessionInfo = await getSessionInfo(connectionId);
 
-            // Get downloads path
+
             const destination = await window.electron.getDownloadsPath();
             if (!destination.success) throw new Error(destination.error);
             const downloadPath = destination.path;
 
-            // Start downloading the file
+
             setStatus("downloading");
             const { downloadFile } = window.electron;
             const result = await downloadFile(

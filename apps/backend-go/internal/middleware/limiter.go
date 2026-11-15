@@ -9,7 +9,6 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// IPRateLimiter is a rate limiter for IP addresses
 type IPRateLimiter struct {
 	ips map[string]*rate.Limiter
 	mu  *sync.RWMutex
@@ -17,7 +16,6 @@ type IPRateLimiter struct {
 	b   int
 }
 
-// NewIPRateLimiter creates a new IPRateLimiter
 func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 	return &IPRateLimiter{
 		ips: make(map[string]*rate.Limiter),
@@ -27,7 +25,6 @@ func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
 	}
 }
 
-// AddIP adds an IP address to the rate limiter
 func (i *IPRateLimiter) AddIP(ip string) *rate.Limiter {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -38,7 +35,6 @@ func (i *IPRateLimiter) AddIP(ip string) *rate.Limiter {
 	return limiter
 }
 
-// GetLimiter gets a rate limiter for an IP address
 func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	i.mu.RLock()
 	limiter, exists := i.ips[ip]
@@ -51,12 +47,10 @@ func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
 	return limiter
 }
 
-// RateLimiterMiddleware creates a middleware for rate limiting
 func RateLimiterMiddleware(limiter *IPRateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		if ip == "" {
-			// Fallback to remote address if client IP is not available
 			ip = c.Request.RemoteAddr
 		}
 

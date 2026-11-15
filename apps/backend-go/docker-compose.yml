@@ -1,6 +1,6 @@
 version: "3.8"
 services:
-  # API Service
+
   api:
     build:
       context: .
@@ -13,7 +13,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/safeshare?sslmode=disable
       - REDIS_URL=redis://redis:6379/0
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - MAX_FILE_SIZE=5368709120 # 5GB
+      - MAX_FILE_SIZE=5368709120
       - FILE_EXPIRATION=24h
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-me-in-production}
       - CORS_ORIGINS=*
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     networks:
       - safeshare-network
-  # Database Service
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
     networks:
       - safeshare-network
-  # Redis Service
+
   redis:
     image: redis:7-alpine
     ports:
@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
     networks:
       - safeshare-network
-  # RabbitMQ Service
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
@@ -80,7 +80,7 @@ services:
     restart: unless-stopped
     networks:
       - safeshare-network
-  # Migration Service
+
   migration:
     build:
       context: .

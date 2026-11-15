@@ -1,7 +1,7 @@
-/**
- * SafeShare WebRTC Client
- * This library handles WebRTC connections for direct peer-to-peer file transfer.
- */
+
+
+
+
 class SafeShareWebRTC {
   constructor(apiBase, authToken) {
     this.apiBase = apiBase;
@@ -17,7 +17,7 @@ class SafeShareWebRTC {
     this.onFileReceivedCallback = null;
     this.receivedChunks = [];
     this.fileInfo = null;
-    this.chunkSize = 16384; // 16KB chunks
+    this.chunkSize = 16384;
     this.currentChunk = 0;
     this.totalChunks = 0;
     this.iceCandidateQueue = [];
@@ -32,7 +32,7 @@ class SafeShareWebRTC {
   async initSender(transferId) {
     this.isInitiator = true;
 
-    // Create a room
+
     const response = await fetch(`${this.apiBase}/api/webrtc/rooms`, {
       method: "POST",
       headers: {
@@ -51,21 +51,21 @@ class SafeShareWebRTC {
     const data = await response.json();
     this.roomId = data.room_id;
 
-    // Setup peer connection
+
     this.setupPeerConnection();
 
-    // Create data channel
+
     this.dataChannel = this.peerConnection.createDataChannel("fileTransfer");
     this.setupDataChannel();
 
-    // Create and send offer
+
     const offer = await this.peerConnection.createOffer();
     await this.peerConnection.setLocalDescription(offer);
 
-    // Send offer to signaling server
+
     await this.sendSignal("offer", offer.sdp);
 
-    // Start polling for answer and ICE candidates
+
     this.startSignalPolling();
 
     return this.roomId;
@@ -80,7 +80,7 @@ class SafeShareWebRTC {
     this.isInitiator = false;
     this.roomId = roomId;
 
-    // Join the room
+
     const response = await fetch(
       `${this.apiBase}/api/webrtc/rooms/${roomId}/join`,
       {
@@ -96,22 +96,22 @@ class SafeShareWebRTC {
       throw new Error(`Failed to join room: ${response.statusText}`);
     }
 
-    // Setup peer connection
+
     this.setupPeerConnection();
 
-    // Handle data channel created by the initiator
+
     this.peerConnection.ondatachannel = (event) => {
       this.dataChannel = event.channel;
       this.setupDataChannel();
     };
 
-    // Start polling for offer and ICE candidates
+
     this.startSignalPolling();
   }
 
-  /**
-   * Set up the WebRTC peer connection
-   */
+
+
+
   setupPeerConnection() {
     const configuration = {
       iceServers: [
@@ -125,14 +125,14 @@ class SafeShareWebRTC {
 
     this.peerConnection = new RTCPeerConnection(configuration);
 
-    // Handle ICE candidates
+
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
         this.sendSignal("ice-candidate", JSON.stringify(event.candidate));
       }
     };
 
-    // Handle connection state changes
+
     this.peerConnection.onconnectionstatechange = () => {
       if (this.peerConnection.connectionState === "connected") {
         this.connected = true;
@@ -152,9 +152,9 @@ class SafeShareWebRTC {
     };
   }
 
-  /**
-   * Set up the WebRTC data channel
-   */
+
+
+
   setupDataChannel() {
     this.dataChannel.onopen = () => {
       console.log("Data channel is open");
@@ -166,14 +166,14 @@ class SafeShareWebRTC {
 
     this.dataChannel.onmessage = (event) => {
       if (typeof event.data === "string") {
-        // This is file metadata
+
         const metadata = JSON.parse(event.data);
         this.fileInfo = metadata;
         this.totalChunks = Math.ceil(metadata.size / this.chunkSize);
         this.receivedChunks = [];
         this.currentChunk = 0;
       } else {
-        // This is file data
+
         this.receivedChunks.push(event.data);
         this.currentChunk++;
 
@@ -183,7 +183,7 @@ class SafeShareWebRTC {
         }
 
         if (this.currentChunk === this.totalChunks) {
-          // All chunks received, reconstruct the file
+
           const file = new Blob(this.receivedChunks, {
             type: this.fileInfo.type,
           });
@@ -210,7 +210,7 @@ class SafeShareWebRTC {
       throw new Error("WebRTC not connected");
     }
 
-    // Send file metadata
+
     const metadata = {
       name: file.name,
       type: file.type,
@@ -218,11 +218,11 @@ class SafeShareWebRTC {
     };
     this.dataChannel.send(JSON.stringify(metadata));
 
-    // Calculate chunks
+
     this.totalChunks = Math.ceil(file.size / this.chunkSize);
     this.currentChunk = 0;
 
-    // Read and send the file in chunks
+
     const reader = new FileReader();
     let offset = 0;
 
@@ -306,7 +306,7 @@ class SafeShareWebRTC {
     const offers = await this.getSignals("offer");
     if (offers.length === 0) return;
 
-    // Take the latest offer
+
     const offerSdp = offers[offers.length - 1];
     const offer = new RTCSessionDescription({
       type: "offer",
@@ -317,10 +317,10 @@ class SafeShareWebRTC {
     const answer = await this.peerConnection.createAnswer();
     await this.peerConnection.setLocalDescription(answer);
 
-    // Send answer
+
     await this.sendSignal("answer", answer.sdp);
 
-    // Process any queued ICE candidates
+
     for (const candidate of this.iceCandidateQueue) {
       await this.peerConnection.addIceCandidate(candidate);
     }
@@ -337,7 +337,7 @@ class SafeShareWebRTC {
     const answers = await this.getSignals("answer");
     if (answers.length === 0) return;
 
-    // Take the latest answer
+
     const answerSdp = answers[answers.length - 1];
     const answer = new RTCSessionDescription({
       type: "answer",
@@ -346,7 +346,7 @@ class SafeShareWebRTC {
 
     await this.peerConnection.setRemoteDescription(answer);
 
-    // Process any queued ICE candidates
+
     for (const candidate of this.iceCandidateQueue) {
       await this.peerConnection.addIceCandidate(candidate);
     }
@@ -372,9 +372,9 @@ class SafeShareWebRTC {
     }
   }
 
-  /**
-   * Start polling for signals
-   */
+
+
+
   startSignalPolling() {
     this.signalPollingInterval = setInterval(async () => {
       try {
@@ -385,7 +385,7 @@ class SafeShareWebRTC {
         }
         await this.processIceCandidates();
 
-        // Stop polling when connected
+
         if (this.connected) {
           this.stopSignalPolling();
         }
@@ -395,9 +395,9 @@ class SafeShareWebRTC {
     }, 1000);
   }
 
-  /**
-   * Stop polling for signals
-   */
+
+
+
   stopSignalPolling() {
     if (this.signalPollingInterval) {
       clearInterval(this.signalPollingInterval);
@@ -405,9 +405,9 @@ class SafeShareWebRTC {
     }
   }
 
-  /**
-   * Close the WebRTC connection
-   */
+
+
+
   close() {
     this.stopSignalPolling();
 

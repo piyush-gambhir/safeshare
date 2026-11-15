@@ -1,5 +1,5 @@
-// Client for the signaling API. It only ever carries a session ID and the
-// WebRTC offer and answer: no file metadata and no keys.
+
+
 import { TransferError } from '@/lib/transfer-crypto';
 
 const API_BASE_URL =

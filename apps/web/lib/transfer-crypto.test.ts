@@ -23,7 +23,7 @@ function randomBytes(length: number): Uint8Array<ArrayBuffer> {
     return bytes;
 }
 
-// Encrypts `file` the way the web client does and returns every message in order.
+
 async function sealFile(
     key: CryptoKey,
     file: Uint8Array<ArrayBuffer>,
@@ -135,7 +135,7 @@ test('a tampered IV or message type fails', async () => {
     new Uint8Array(ivTampered[1])[2] ^= 0x01;
     await assert.rejects(openAll(rkey, ivTampered), TransferError);
 
-    // Relabel the last chunk as the end message: the type is bound in the AAD.
+
     const retyped = await sealFile(key, randomBytes(10));
     new Uint8Array(retyped[1])[1] = 3;
     await assert.rejects(openAll(rkey, retyped), TransferError);
@@ -168,11 +168,11 @@ test('truncation is detected', async () => {
     const rkey = await receiverKey(key);
     const messages = await sealFile(key, randomBytes(CHUNK_SIZE * 3));
 
-    // Dropping a chunk shifts the end message to an unexpected position.
+
     const dropped = [...messages.slice(0, 3), messages[messages.length - 1]];
     await assert.rejects(openAll(rkey, dropped), TransferError);
 
-    // A stream cut off before the end message never completes.
+
     const { decryptor } = await openAll(rkey, messages.slice(0, -1));
     assert.equal(decryptor.done, false);
 });

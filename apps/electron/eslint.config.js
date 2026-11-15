@@ -32,7 +32,7 @@ export default [
         { allowConstantExport: true },
       ],
       // New in typescript-eslint 8 recommended; it flags the existing
-      // shadcn/ui InputProps interface, so warn until that is reworked.
+
       '@typescript-eslint/no-empty-object-type': 'warn',
     },
   },
