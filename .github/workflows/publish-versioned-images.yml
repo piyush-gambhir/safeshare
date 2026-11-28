@@ -31,7 +31,7 @@ jobs:
         - image: safeshare-migrations
           dockerfile: Dockerfile.migration
           context: apps/backend-go
-    uses: docker/github-builder/.github/workflows/build.yml@a31d2311da4d55e21b978c1c52bab82ba97d51ee
+    uses: docker/github-builder/.github/workflows/build.yml@bb1eb9fb69408ac52395fb21f49c6b52d564529a
     permissions:
       contents: read
       packages: write
